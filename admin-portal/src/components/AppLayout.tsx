@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { NavLink, Outlet } from "react-router-dom"
 import {
+  CalendarDays,
   FileText,
   LayoutDashboard,
   LogOut,
@@ -23,6 +24,12 @@ const links = [
     to: "/materials",
     label: "Study materials",
     icon: FileText,
+    end: false,
+  },
+  {
+    to: "/events",
+    label: "Events",
+    icon: CalendarDays,
     end: false,
   },
 ]

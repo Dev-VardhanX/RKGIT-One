@@ -7,6 +7,8 @@ import LoginPage from "@/pages/LoginPage"
 import DashboardPage from "@/pages/DashboardPage"
 import MaterialsPage from "@/pages/MaterialsPage"
 import MaterialFormPage from "@/pages/MaterialFormPage"
+import EventsPage from "@/pages/EventsPage";
+import EventFormPage from "@/pages/EventFormPage";
 
 export default function App() {
   return (
@@ -37,6 +39,9 @@ export default function App() {
             path="/materials/:id/edit"
             element={<MaterialFormPage />}
           />
+          <Route path="events" element={<EventsPage />} />
+          <Route path="events/new" element={<EventFormPage />} />
+          <Route path="events/:id/edit" element={<EventFormPage />} />
         </Route>
       </Route>
 
