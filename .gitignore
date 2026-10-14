@@ -1,0 +1,24 @@
+# Secrets
+
+.env
+.env.*
+!.env.example
+*.keystore
+*.jks
+
+# Web
+
+node_modules/
+dist/
+
+# Android
+
+android/**/build/
+android/**/.gradle/
+android/**/local.properties
+.idea/
+
+# Supabase local
+
+supabase/.temp/
+supabase/.branches/
