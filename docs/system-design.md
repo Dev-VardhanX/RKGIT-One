@@ -1,50 +1,65 @@
-# RKGIT ONE: Final System Design
+# RKGIT ONE: System Design
 
 Native Android student app and web admin portal on a shared Supabase backend.
 
+Last updated: 2026-10-15
+
 ## 1. Overview
 
-RKGIT ONE is a college app that gives students one place to find study materials and stay informed about college events.
+RKGIT ONE is a college app that gives students one place to find study notes, college events, and official notices.
 
-- **Student Android app:** browse study materials (Year → Semester → Subject → Materials), open or download PDFs for offline reading, and view college events with a registration link.
-- **Admin portal (website):** an administrator logs in to manage study materials and events.
-- **Shared backend:** both interfaces talk to the same Supabase project, so anything the admin publishes shows up in the app on the next fetch.
+The app has **three sections**:
 
-### v1 scope (nothing else)
+| Section | What it holds | Who manages it |
+|---|---|---|
+| **Notes** (study materials) | PDFs and documents organised by Year, Semester, Subject | Admin portal |
+| **Events** | College events with date, venue, description, poster, and a registration link | Admin portal |
+| **Notices** | Official notices such as datesheets, holiday notices, exam notices, academic circulars | Admin portal |
 
-1. Student access to study materials, organised by year, semester, subject
+Two interfaces share one backend:
+
+- **Student Android app:** browse notes, events, and notices. Open PDFs in the app, and download them to read later offline.
+- **Admin portal (website):** an administrator logs in to manage all three sections.
+- **Shared backend:** Supabase. Anything the admin publishes shows up in the app on its next fetch.
+
+Naming note: the app and docs say "Notes". The database table and code say `study_materials`.
+
+## 2. v1 scope
+
+1. Notes organised by year, semester, and subject
 2. Open a PDF in the app, and download it to read later offline
-3. Recent and upcoming events, with event details and a registration link
-4. Admin login
-5. Admin management of study materials and events
-6. Secure backend access
-7. Polished, responsive admin interface
+3. Recent and upcoming events, event details, and a registration link
+4. Official notices with optional attachment (PDF or image), pinning, and expiry
+5. Admin login
+6. Admin management of notes, events, and notices
+7. Secure backend access
+8. Polished, responsive admin interface
 
-## 2. Technology stack
+Nothing else is added unless it is explicitly decided and written in `decisions.md`.
 
-Only the admin web platform changed from the original plan. Everything else is as specified.
+## 3. Technology stack
 
 | Component | Technology |
-| --- | --- |
+|---|---|
 | Student app | Native Android, Kotlin, Android Studio |
 | UI | Jetpack Compose |
 | Architecture | MVVM |
 | Navigation | Navigation for Compose |
-| **Admin website (changed)** | **React + Vite + TypeScript, Tailwind CSS, shadcn/ui** |
+| Admin website | React + Vite + TypeScript, Tailwind CSS, shadcn/ui |
 | Web data and forms | supabase-js, TanStack Query, React Hook Form + Zod, React Router |
 | Backend | Supabase |
 | Database | PostgreSQL (Supabase) |
 | File storage | Supabase Storage |
-| Authentication | Supabase Auth |
+| Authentication | Supabase Auth (administrators only) |
 | Access control | Row Level Security and storage policies |
 | Website hosting | Cloudflare Pages or Vercel (static build) |
 | Version control | Git and GitHub |
 
-**Android supporting libraries:** supabase-kt (Postgrest), Ktor and kotlinx.serialization, Coil (images), Hilt (DI, or manual DI), Room (local index of downloads), WorkManager (downloads), Coroutines and Flow.
+Android supporting libraries: supabase-kt (Postgrest), Ktor and kotlinx.serialization, Coil (images), Hilt (DI), Room (local index of downloads), WorkManager (downloads), Coroutines and Flow.
 
-**Why React instead of plain HTML/CSS/JS:** the portal is a form- and table-heavy app. React gives structure for state, routing, and validation. shadcn/ui provides the premium look (sidebar, cards, tables, dialogs, toasts). TypeScript catches wrong column names at build time. It is still a static site with no server, so it deploys to the same free hosts.
+Why React for the portal: it is a form- and table-heavy app, so React gives structure for state, routing, and validation. shadcn/ui provides the polished look. TypeScript catches wrong column names at build time. It is still a static site with no server.
 
-## 3. Architecture
+## 4. Architecture
 
 ```
 ┌──────────────────┐        ┌───────────────────────┐
@@ -59,40 +74,41 @@ Only the admin web platform changed from the original plan. Everything else is a
 │ Supabase                                         │
 │  Auth (admin only)   REST API (PostgREST)        │
 │  PostgreSQL + RLS    Storage: study-materials,   │
-│                              event-posters       │
+│                      event-posters, notice-files │
 └──────────────────────────────────────────────────┘
 ```
 
 Principles:
 
 - No custom server. Supabase's generated REST API plus RLS is the entire backend.
-- Both clients use only the public anon key. Security comes from RLS and storage policies, not from hiding keys.
+- Both clients use only the public anon key. Security comes from RLS and storage policies.
 - The service-role key never appears in the Android app, the website code, or the repository.
 - The student app is read-only and needs no login. The admin portal is the only writer.
 
-## 4. Data model
+## 5. Data model
 
 ```
 subjects ──< study_materials
 events
+notices
 admins   (allow-list of auth users)
 ```
 
-### 4.1 Schema
+### 5.1 Schema
 
 ```sql
 -- Admin allow-list
-create table admins (
+create table public.admins (
   user_id uuid primary key references auth.users(id) on delete cascade
 );
 
-create function is_admin() returns boolean
+create function public.is_admin() returns boolean
 language sql security definer set search_path = public stable as $$
-  select exists (select 1 from admins where user_id = auth.uid());
+  select exists (select 1 from public.admins where user_id = auth.uid());
 $$;
 
 -- Subjects
-create table subjects (
+create table public.subjects (
   id         uuid primary key default gen_random_uuid(),
   year       smallint not null check (year between 1 and 4),
   semester   smallint not null check (semester between 1 and 8),
@@ -100,138 +116,177 @@ create table subjects (
   created_at timestamptz not null default now(),
   check (semester between year * 2 - 1 and year * 2)
 );
-create unique index subjects_unique on subjects (year, semester, lower(name));
+create unique index subjects_unique on public.subjects (year, semester, lower(name));
 
--- Study materials
-create table study_materials (
+-- Notes (study materials)
+create table public.study_materials (
   id          uuid primary key default gen_random_uuid(),
-  subject_id  uuid not null references subjects(id) on delete restrict,
-  title       text not null,
+  subject_id  uuid not null references public.subjects(id) on delete restrict,
+  title       text not null check (length(trim(title)) > 0),
   description text,
-  file_path   text not null,   -- path inside the bucket
-  file_name   text not null,   -- original name shown to students
-  file_type   text not null,   -- MIME type
-  file_size   bigint not null, -- bytes
+  file_path   text not null,
+  file_name   text not null,
+  file_type   text not null,
+  file_size   bigint not null check (file_size > 0),
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now()
 );
-create index on study_materials (subject_id);
-create index on study_materials (created_at desc);
+create index on public.study_materials (subject_id);
+create index on public.study_materials (created_at desc);
 
 -- Events
-create table events (
+create table public.events (
   id               uuid primary key default gen_random_uuid(),
-  title            text not null,
+  title            text not null check (length(trim(title)) > 0),
   description      text,
   event_date       timestamptz not null,
   venue            text,
-  poster_path      text,   -- path inside event-posters bucket
+  poster_path      text,
   registration_url text check (registration_url ~* '^https?://'),
   created_at       timestamptz not null default now(),
   updated_at       timestamptz not null default now()
 );
-create index on events (event_date);
+create index on public.events (event_date);
+
+-- Notices
+create table public.notices (
+  id           uuid primary key default gen_random_uuid(),
+  title        text not null check (length(trim(title)) > 0),
+  body         text,
+  category     text not null default 'general'
+               check (category in ('general','academic','exam','datesheet','holiday')),
+  pinned       boolean not null default false,
+  link_url     text check (link_url ~* '^https?://'),
+  file_path    text,
+  file_name    text,
+  file_type    text,
+  file_size    bigint check (file_size > 0),
+  published_at timestamptz not null default now(),
+  expires_at   timestamptz,
+  created_at   timestamptz not null default now(),
+  updated_at   timestamptz not null default now(),
+  check (
+    (file_path is null) = (file_name is null)
+    and (file_path is null) = (file_type is null)
+    and (file_path is null) = (file_size is null)
+  ),
+  check (nullif(trim(coalesce(body, '')), '') is not null or file_path is not null),
+  check (expires_at is null or expires_at > published_at)
+);
+create index on public.notices (pinned desc, published_at desc);
+create index on public.notices (expires_at);
 
 -- updated_at trigger
-create function touch_updated_at() returns trigger language plpgsql as $$
+create function public.touch_updated_at() returns trigger
+language plpgsql set search_path = public as $$
 begin new.updated_at = now(); return new; end $$;
-create trigger t_materials before update on study_materials
-  for each row execute function touch_updated_at();
-create trigger t_events before update on events
-  for each row execute function touch_updated_at();
+
+create trigger t_materials_touch before update on public.study_materials
+  for each row execute function public.touch_updated_at();
+create trigger t_events_touch before update on public.events
+  for each row execute function public.touch_updated_at();
+create trigger t_notices_touch before update on public.notices
+  for each row execute function public.touch_updated_at();
 ```
 
 Design notes:
 
-- **Upcoming vs recent** events are derived by comparing `event_date` with the current time. There is no status column to keep in sync.
+- **Upcoming vs recent events** are derived by comparing `event_date` with the current time. There is no status column to keep in sync.
 - **Semester check:** Year 1 allows semesters 1 and 2, Year 2 allows 3 and 4, and so on.
 - **`on delete restrict`** prevents deleting a subject that still has materials.
-- **Registration link:** `registration_url` is optional. The database only accepts `http(s)` URLs, which blocks `javascript:` and similar schemes. The portal validates it as well for friendly errors.
+- **Registration link and notice link:** optional, and the database only accepts `http(s)` URLs, which blocks `javascript:` and similar schemes. The portal validates too, for friendly errors.
+- **Notices:** a notice needs a message or an attachment. The four attachment fields are all set or all empty. Categories are a fixed list. A notice with `expires_at` in the past is hidden by the app, but stays in the database so the admin can still see and edit it.
+- **Subjects are created on demand** by the portal: it looks up the subject (case-insensitive), inserts it if missing, and looks again if the insert hits the unique index. A plain upsert does not work against the case-insensitive index.
 
-### 4.2 Row Level Security
+### 5.2 Row Level Security
 
 ```sql
-alter table subjects        enable row level security;
-alter table study_materials enable row level security;
-alter table events          enable row level security;
-alter table admins          enable row level security;
+alter table public.subjects        enable row level security;
+alter table public.study_materials enable row level security;
+alter table public.events          enable row level security;
+alter table public.notices         enable row level security;
+alter table public.admins          enable row level security;
 
--- Everyone (the app) can read
-create policy "public read" on subjects        for select using (true);
-create policy "public read" on study_materials for select using (true);
-create policy "public read" on events          for select using (true);
+-- Everyone (the app) can read content
+create policy "public read" on public.subjects        for select using (true);
+create policy "public read" on public.study_materials for select using (true);
+create policy "public read" on public.events          for select using (true);
+create policy "public read" on public.notices         for select using (true);
 
 -- Only admins can write
-create policy "admin write" on subjects        for all using (is_admin()) with check (is_admin());
-create policy "admin write" on study_materials for all using (is_admin()) with check (is_admin());
-create policy "admin write" on events          for all using (is_admin()) with check (is_admin());
+create policy "admin write" on public.subjects        for all using (public.is_admin()) with check (public.is_admin());
+create policy "admin write" on public.study_materials for all using (public.is_admin()) with check (public.is_admin());
+create policy "admin write" on public.events          for all using (public.is_admin()) with check (public.is_admin());
+create policy "admin write" on public.notices         for all using (public.is_admin()) with check (public.is_admin());
 
--- A user can check only their own admin row; nobody edits it via the API
-create policy "self read" on admins for select using (user_id = auth.uid());
+-- A signed-in user can read only their own admin row; nobody edits admins via the API
+create policy "self read" on public.admins for select using (user_id = auth.uid());
 ```
 
-### 4.3 Storage
+### 5.3 Storage
 
 | Bucket | Access | Allowed types | Limit |
-| --- | --- | --- | --- |
-| `study-materials` | public read | PDF first; DOCX/PPTX optional | e.g. 25 MB |
-| `event-posters` | public read | JPEG, PNG, WebP | e.g. 5 MB |
+|---|---|---|---|
+| `study-materials` | public read | PDF, DOCX, PPTX | 25 MB |
+| `event-posters` | public read | JPEG, PNG, WebP | 5 MB |
+| `notice-files` | public read | PDF, JPEG, PNG, WebP | 10 MB |
 
-Bucket-level MIME and size limits are enforced by Supabase itself. Paths are unguessable and **always new on upload**: `materials/{uuid}/{sanitized-name}` and `posters/{uuid}.webp`. A replaced file therefore always gets a new path, which is how the app detects updates.
+MIME types and size limits are enforced by the bucket itself. Each bucket has admin-only select, insert, update, and delete policies on `storage.objects` (`public.is_admin()`).
 
-```sql
-create policy "admin upload" on storage.objects for insert
-  with check (bucket_id in ('study-materials','event-posters') and is_admin());
-create policy "admin update" on storage.objects for update
-  using (bucket_id in ('study-materials','event-posters') and is_admin());
-create policy "admin delete" on storage.objects for delete
-  using (bucket_id in ('study-materials','event-posters') and is_admin());
-```
+Paths are unguessable and **always new on upload**:
 
-The buckets are public-read because students do not log in. Unguessable paths make casual discovery unlikely, but anyone with a URL can open the file. If content must ever be restricted to RKGIT students only, add student sign-in and signed URLs. That is outside v1 and should be decided before the backend is built.
+- `materials/{uuid}/{sanitized-name}`
+- `posters/{uuid}.webp`
+- `notices/{uuid}/{sanitized-name}`
 
-### 4.4 Authentication setup
+A replaced file therefore always gets a new path, which is how the app detects that a downloaded file is out of date.
 
-- Disable public sign-ups in Supabase Auth settings.
-- Create the admin user manually in the dashboard, then insert their `user_id` into `admins`.
-- Even if an account were created some other way, `is_admin()` would reject every write.
+The buckets are public-read because students do not log in. Unguessable paths make casual discovery unlikely, but anyone with a URL can open the file. If content must ever be restricted to RKGIT students only, add student sign-in and signed URLs. That is outside v1.
 
-## 5. Student Android app
+### 5.4 Authentication setup
 
-### 5.1 Features
+- Public sign-ups are disabled in Supabase Auth settings.
+- The admin user is created manually in the dashboard, and its `user_id` is inserted into `admins` with a one-off SQL statement (not stored in a migration, so the email stays out of git).
+- Even if an account were created some other way, `is_admin()` rejects every write.
 
-- **Home:** recent materials, recent and upcoming events, shortcuts to Materials and Events.
-- **Materials:** Year → Semester → Subject → list of materials, each showing title, file type, size, and date. Actions: Open, Download.
-- **Events:** list with poster, name, date and time, venue. Event detail shows the full description, the poster, and a **Register** button when `registration_url` exists.
-- **Downloads:** every file saved for offline reading, available without internet.
-- Every screen has loading, empty, and error (with Retry) states, and a consistent visual identity.
+## 6. Student Android app
 
-### 5.2 Package structure
+### 6.1 Features
+
+- **Home:** latest notices (pinned first), recent notes, and upcoming events, with shortcuts to each section.
+- **Notes:** Year → Semester → Subject → list of notes, each showing title, file type, size, and date. Actions: Open, Download.
+- **Events:** list with poster, name, date and time, and venue. Event detail shows the full description, the poster, and a **Register** button when `registration_url` exists.
+- **Notices:** list with pinned notices first, then newest, with category chips as a filter. Expired notices are hidden. Notice detail shows the message, an optional link button, and the optional attachment (PDF or image), which can be opened and downloaded.
+- **Downloads:** every file saved for offline reading (notes and notice attachments), available without internet.
+- Every screen has loading, empty, and error (with Retry) states and a consistent visual identity.
+
+### 6.2 Package structure
 
 ```
 com.rkgit.one
 ├── data
 │   ├── remote       Supabase client, DTOs (@Serializable)
-│   ├── local        AppDatabase, DownloadDao, DownloadedMaterial (Room)
+│   ├── local        AppDatabase, DownloadDao, DownloadedFile (Room)
 │   ├── download     DownloadWorker, DownloadRepository
-│   ├── repository   MaterialsRepository, EventsRepository
+│   ├── repository   MaterialsRepository, EventsRepository, NoticesRepository
 │   └── mapper       DTO → domain model
 ├── domain
-│   └── model        Subject, StudyMaterial, Event
+│   └── model        Subject, StudyMaterial, Event, Notice
 ├── ui
 │   ├── navigation   NavGraph, Routes
 │   ├── theme        Color, Type, Shape, Theme
-│   ├── components   LoadingView, EmptyView, ErrorView, MaterialCard, EventCard
+│   ├── components   LoadingView, EmptyView, ErrorView, MaterialCard, EventCard, NoticeCard
 │   └── screens
 │       ├── home
 │       ├── materials   (YearSemester, Subjects, MaterialList)
-│       ├── viewer      (PdfViewerScreen, PdfPageCache)
-│       ├── downloads   (DownloadsScreen)
-│       └── events      (EventList, EventDetail)
+│       ├── events      (EventList, EventDetail)
+│       ├── notices     (NoticeList, NoticeDetail)
+│       ├── viewer      (PdfViewerScreen, ImageViewerScreen, PdfPageCache)
+│       └── downloads   (DownloadsScreen)
 └── MainActivity, App
 ```
 
-### 5.3 MVVM and UI state
+### 6.3 MVVM and UI state
 
 Each screen has a ViewModel exposing a `StateFlow<UiState<T>>`. Composables render loading, empty, error, or content from that single state.
 
@@ -243,22 +298,23 @@ sealed interface UiState<out T> {
 }
 ```
 
-### 5.4 Navigation
+### 6.4 Navigation
 
 ```
-Bottom bar: Home | Materials | Events
+Bottom bar: Home | Notes | Events | Notices
 
-Materials ─ Subjects(year, semester) ─ MaterialList(subjectId) ─ PdfViewer(materialId)
-Downloads ─────────────────────────────────────────────────── PdfViewer(materialId)
-Events ─ EventDetail(eventId)
+Notes   ─ Subjects(year, semester) ─ MaterialList(subjectId) ─ Viewer(kind, itemId)
+Events  ─ EventDetail(eventId)
+Notices ─ NoticeDetail(noticeId) ─ Viewer(kind, itemId)
+Downloads ─────────────────────────────────────────────────── Viewer(kind, itemId)
 ```
 
-Downloads is reached from the Materials tab (and optionally Home).
+Downloads is reached from the Notes tab (and optionally Home).
 
-### 5.5 Key queries
+### 6.5 Key queries
 
 ```kotlin
-// Home: recent materials with subject info
+// Notes: recent, with subject info
 postgrest["study_materials"]
   .select(Columns.raw("*, subjects(name, year, semester)")) {
       order("created_at", Order.DESCENDING); limit(5)
@@ -269,7 +325,7 @@ postgrest["subjects"].select {
     filter { eq("year", y); eq("semester", s) }; order("name", Order.ASCENDING)
 }
 
-// Materials for a subject
+// Notes for a subject
 postgrest["study_materials"].select {
     filter { eq("subject_id", id) }; order("created_at", Order.DESCENDING)
 }
@@ -279,18 +335,20 @@ postgrest["events"].select { filter { gte("event_date", nowIso) }; order("event_
 postgrest["events"].select { filter { lt("event_date", nowIso) };  order("event_date", Order.DESCENDING); limit(10) }
 ```
 
-### 5.6 Opening and downloading files
+Notices use the PostgREST filter `expires_at.is.null,expires_at.gt.<now>` (an `or` filter) to hide expired notices, ordered by `pinned` descending, then `published_at` descending.
 
-The PDF viewer always renders a **local file**. The two buttons differ only in where the file lives.
+### 6.6 Opening and downloading files
+
+The viewer always renders a **local file**. The two actions differ only in where the file lives.
 
 | Action | Behaviour | File location |
-| --- | --- | --- |
+|---|---|---|
 | **Open** | Use the downloaded copy if it exists, otherwise fetch it first | `cacheDir` (Android may clear it) |
-| **Download** | Save for offline use; move from cache if already fetched | `filesDir/materials/` (persistent, app-private) |
+| **Download** | Save for offline use; move from cache if already fetched | `filesDir/downloads/` (persistent, app-private) |
 
 App-private storage needs no storage permission. The only added permission is `POST_NOTIFICATIONS` (Android 13+) for download progress.
 
-**Per-material state**
+**Per-file state**
 
 ```kotlin
 sealed interface DownloadState {
@@ -302,140 +360,145 @@ sealed interface DownloadState {
 }
 ```
 
-`DownloadRepository` combines Room rows, WorkManager progress, and the material's current `file_path` into one `Flow<DownloadState>` per material, so cards update live.
+`DownloadRepository` combines Room rows, WorkManager progress, and the item's current `file_path` into one `Flow<DownloadState>` per file, so cards update live.
 
-**Local index (Room)**
+**Local index (Room)** covers both notes and notice attachments:
 
 ```kotlin
-@Entity(tableName = "downloads")
-data class DownloadedMaterial(
-    @PrimaryKey val materialId: String,
-    val title: String, val subjectName: String,
-    val year: Int, val semester: Int,
+@Entity(tableName = "downloads", primaryKeys = ["kind", "itemId"])
+data class DownloadedFile(
+    val kind: String,            // "material" or "notice"
+    val itemId: String,
+    val title: String,
+    val subtitle: String,        // e.g. "Year 1 · Sem 2 · Maths" or the notice category
+    val year: Int?, val semester: Int?,   // null for notices
     val fileName: String, val fileType: String, val sizeBytes: Long,
-    val remoteFilePath: String,   // file_path at download time
+    val remoteFilePath: String,  // file_path at download time
     val localPath: String,
     val downloadedAt: Long
 )
 ```
 
-Room lets the Downloads screen work offline. **Update detection** compares `remoteFilePath` with the current `file_path`. Comparing `updated_at` would trigger false updates when only the title was edited.
+Room lets the Downloads screen work offline. **Update detection** compares `remoteFilePath` with the item's current `file_path`. Comparing `updated_at` would trigger false updates when only the title was edited.
 
 **Download procedure (WorkManager + OkHttp)**
 
 1. Build the public URL from the bucket and `file_path`.
-2. Stream into `{materialId}.pdf.part`, reporting progress from `Content-Length`.
-3. On completion, rename to `{materialId}.pdf` (atomic), then insert the Room row.
+2. Stream into `{kind}-{itemId}.part`, reporting progress from `Content-Length`.
+3. On completion, rename to the final name (atomic), then insert the Room row.
 4. On failure or cancel, delete the `.part` file and set `Failed`.
 5. On app start, delete leftover `.part` files.
 6. Before starting, check free space against `file_size`. For large files (about 10 MB or more) on mobile data, ask for confirmation.
 
-**PDF viewer:** Android's built-in `PdfRenderer`, no third-party library.
+**Viewers**
 
-- Pages render to bitmaps at screen width on a background thread, shown in a `LazyColumn`, with an `LruCache` to keep memory low.
-- Pinch-to-zoom via `transformable`, page indicator ("Page 3 / 24"), and resume at the last page read.
-- Close the renderer and file descriptor and recycle bitmaps when leaving the screen.
-- `PdfRenderer` cannot open password-protected PDFs. On any error, offer **Open in another app** or **Re-download**.
+- **PDF:** Android's built-in `PdfRenderer`. Pages render to bitmaps at screen width on a background thread, shown in a `LazyColumn`, with an `LruCache`. Pinch-to-zoom, a page indicator, and resume at the last page read. Close the renderer and recycle bitmaps when leaving the screen. `PdfRenderer` cannot open password-protected PDFs, so on any error offer **Open in another app** or **Re-download**.
+- **Images (notice attachments):** an in-app image viewer with zoom, using Coil.
+- **DOCX and PPTX (notes only):** download, then open with `Intent.ACTION_VIEW` through a `FileProvider`. The same action serves as "Open in another app" for PDFs.
 
-**Other file types (DOCX, PPTX):** download, then open with `Intent.ACTION_VIEW` through a `FileProvider`, so a system app handles them. The same action serves as "Open in another app" for PDFs.
+**Links:** the Register button (events) and the notice link button open the URL in a Custom Tab. Check that the scheme is `http` or `https` before opening, as a second layer of defense.
 
-**Registration link:** the Register button opens `registration_url` in a Custom Tab. Check that the scheme is `http` or `https` before opening, as a second layer of defense.
+### 6.7 Offline behaviour
 
-### 5.7 Offline behaviour
-
-- The Downloads screen reads only from Room, so it works fully offline. It groups files by year, semester, and subject, shows sizes, and supports delete and clear all.
+- The Downloads screen reads only from Room, so it works fully offline. It groups notes by year, semester, and subject, lists notice attachments separately, shows sizes, and supports delete and clear all.
 - When offline, the online screens show their normal error state with Retry, plus a hint: "You're offline. View your Downloads."
 - The full catalog is not cached in v1. Offline means files the student chose to download.
-- If the admin deletes a material, the local copy stays readable and is labelled "No longer available online" after the next online refresh.
+- If the admin deletes an item, the local copy stays readable and is labelled "No longer available online" after the next online refresh.
 
-## 6. Admin portal
+## 7. Admin portal
 
-### 6.1 Structure
+### 7.1 Structure
 
 ```
 admin-portal/
 ├── src/
-│   ├── lib/          supabase client, zod schemas, upload and URL helpers
-│   ├── hooks/        useMaterials, useEvents, useSubjects (TanStack Query)
-│   ├── components/   Sidebar, StatCard, DataTable, ConfirmDialog, FileDropzone, EmptyState
-│   ├── pages/        Login, Dashboard, Materials, MaterialForm, Events, EventForm
-│   ├── routes.tsx    protected routes
-│   └── main.tsx
-├── .env              VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY (anon key only)
+│   ├── auth/         AuthProvider.tsx, ProtectedRoute.tsx
+│   ├── lib/          supabase.ts, materials.ts, events.ts, notices.ts (data access and helpers)
+│   ├── hooks/        useMaterials.ts, useEvents.ts, useNotices.ts (TanStack Query)
+│   ├── components/   AppLayout.tsx, ui/ (shadcn components)
+│   ├── pages/        Login, Dashboard, Materials, MaterialForm, Events, EventForm, Notices, NoticeForm
+│   └── main.tsx, App.tsx
+├── .env.local        VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY (anon key only, never committed)
+├── .env.example      same keys, empty values (committed)
 └── vite.config.ts
 ```
 
-### 6.2 Pages
+### 7.2 Authentication flow
 
-- **Login:** email and password through Supabase Auth. After login, confirm the user exists in `admins`, otherwise sign out and show "Not authorized." No registration page exists.
-- **Dashboard:** total materials and events, the latest materials and events, and quick links to both management sections.
-- **Materials:** searchable table with year, semester, and subject filters, and Edit and Delete actions. The form has Title, Year, Semester, a Subject combobox (choose existing or type a new one), and a file dropzone.
-- **Events:** table with search and an Upcoming/Past filter. The form has Title, Date and time, Venue, Description, Poster upload, and an optional **Registration link** (must start with https://, validated on input).
+- `AuthProvider` tracks the session through `onAuthStateChange`.
+- A separate effect then checks that the signed-in user has a row in `admins`. If not, the user is signed out and sees "This account is not authorized."
+- The admin check runs outside the auth callback, because calling Supabase from inside that callback can deadlock.
+- `ProtectedRoute` shows a loading state until both checks finish, then either renders the page or redirects to `/login`.
+- Login errors are generic ("Invalid email or password"). There is no registration page.
 
-### 6.3 Design
+### 7.3 Pages
 
-Light theme with white or soft-gray backgrounds, clear typography and hierarchy, consistent spacing, a simple sidebar (a drawer on mobile), dashboard cards, clean tables, professional forms, search and filters where useful, success and error toasts, confirmation dialogs for destructive actions, loading and empty states, and responsive layouts for desktop, tablet, and mobile browsers.
+- **Login:** email and password.
+- **Dashboard:** counts of notes, events, and notices, the latest items of each, and quick links to the three management sections.
+- **Notes:** searchable table with year, semester, and subject filters, and Edit and Delete actions. The form has Title, Year, Semester, a Subject text field with suggestions from existing subjects (pick one or type a new one), an optional description, and a file picker.
+- **Events:** table with search and an Upcoming/Past filter. The form has Title, Date and time, Venue, Description, Poster upload, and an optional **Registration link** (must start with https://).
+- **Notices:** table with search and a category filter, showing pinned and expired state. The form has Title, Message, Category, an optional attachment (with the option to remove or replace it), an optional link, a Pinned toggle, and an optional Expires on date.
 
-### 6.4 Critical flows
+### 7.4 Design
 
-**Add material**
+Light theme with white or soft-gray backgrounds, clear typography and hierarchy, consistent spacing, a simple sidebar (a top bar with a menu on mobile), dashboard cards, clean tables, professional forms, search and filters where useful, success and error toasts, confirmation dialogs for destructive actions, loading and empty states, and responsive layouts for desktop, tablet, and mobile browsers.
 
-1. Validate with Zod (file type and size are checked on the client too).
-2. If the subject is new, upsert it on (year, semester, name).
-3. Upload the file to `study-materials/materials/{uuid}/{name}`.
-4. Insert the `study_materials` row.
-5. If step 4 fails, delete the uploaded file to avoid orphans, and show an error toast.
+### 7.5 Critical flows
 
-**Replace a file:** upload the new file to a new UUID path, update the row (`file_path`, `file_name`, `file_type`, `file_size`), then delete the old file. Never delete the old file before the row points to the new one.
+These apply to notes, event posters, and notice attachments.
+
+**Add:** validate with Zod (file type and size are checked on the client too), upload the file to a new UUID path, then insert the row. If the insert fails, delete the uploaded file.
+
+**Replace a file:** upload the new file to a new UUID path, update the row to point to it, then delete the old file. Never delete the old file before the row points to the new one.
+
+**Remove a notice attachment:** clear the four attachment fields (only allowed if the notice has a message), then delete the file.
 
 **Delete:** confirmation dialog, delete the row first, then the file. An orphaned file is harmless, but a row pointing to a missing file is not.
 
-**Events and posters:** the same upload, replace, and delete pattern with the `event-posters` bucket. Resize and compress posters in the browser (for example, max 1200 px wide) before upload.
+**Check results:** updates and deletes confirm that exactly one row changed, so a permission problem shows as an error rather than silently doing nothing.
 
-## 7. Cross-cutting concerns
+**Posters:** resize and compress in the browser (for example, max 1200 px wide) before upload.
+
+## 8. Cross-cutting concerns
 
 | Concern | Approach |
-| --- | --- |
-| Security | RLS on every table, storage policies, sign-ups disabled, admin allow-list, anon key only in clients |
+|---|---|
+| Security | RLS on every table, storage policies on every bucket, sign-ups disabled, admin allow-list, anon key only in clients |
 | Validation | Zod on the client for UX, database constraints as the real guard, bucket MIME and size limits |
-| Sync | Both clients use the same API. The app fetches fresh data on screen load and pull-to-refresh. No push or sync layer needed |
-| Performance | Indexes on `subject_id`, `created_at`, `event_date`. Paginate with `.range()` if lists grow beyond about 50 items |
+| Sync | Both clients use the same API. The app fetches fresh data on screen load and pull-to-refresh. No push or sync layer |
+| Performance | Indexes on foreign keys and sort columns. Paginate with `.range()` if lists grow beyond about 50 items |
 | Errors | Failures map to `UiState.Error` with Retry (Android) and toasts (web) |
 | Environments | Separate Supabase projects for dev and prod. Schema lives as SQL migrations in the repo (Supabase CLI) |
 | Backups | Supabase backups on paid plans. On the free plan, export schema and data periodically |
 | Free-tier caution | Free Supabase projects pause after inactivity. Keep the project active or upgrade before launch |
 
-## 8. Repository layout
+## 9. Repository layout
 
 ```
 rkgit-one/
 ├── android/          Android Studio project
 ├── admin-portal/     React + Vite app
 ├── supabase/
-│   └── migrations/   SQL from section 4
+│   └── migrations/   init_schema, rls_policies, storage, notices (and later changes)
+├── docs/             system-design.md, build-order.md, decisions.md
 └── README.md
 ```
-
-## 9. Build order
-
-1. **Backend:** create the Supabase project, run the migrations, create the buckets and policies, create the admin user, and insert test data by hand.
-2. **Android read-only flow:** Home, Materials (Year → Semester → Subject → list), Events with details and the Register button.
-3. **PDF flow, in two steps:** first Open (download to cache, render in the viewer), then persistent Download with Room and WorkManager, the Downloads screen, and update detection.
-4. **Admin portal:** login and route protection, then Materials CRUD, Events CRUD, and the Dashboard last.
-5. **Polish:** empty and error states, responsive checks, file limits, poster compression.
-6. **Deploy:** portal to Cloudflare Pages or Vercel, and an APK or Play Store build for the app.
 
 ## 10. Edge cases checklist
 
 - Interrupted download: `.part` file removed, Retry shown.
 - Low storage: space pre-check with a clear message.
 - Corrupt or protected PDF: viewer error with Open in another app or Re-download.
-- Double tap on Download: unique work keyed by `materialId`, no duplicate jobs.
-- Subject renamed or moved: no effect on downloads, which are keyed by `materialId`.
+- Double tap on Download: unique work keyed by `kind` and `itemId`, so no duplicate jobs.
+- Subject renamed or moved: no effect on downloads, which are keyed by item id.
 - Admin replaces a file: students see Update available and keep the old copy until they update.
-- Admin deletes a material: local copy stays, labelled no longer available online.
-- Invalid registration link: rejected by the portal form and by the database check.
+- Admin deletes an item: local copy stays, labelled no longer available online.
+- Invalid registration or notice link: rejected by the portal form and by the database check.
+- Notice with an expiry date in the past: hidden in the app, still visible to the admin.
+- Notice with only an attachment and no message: allowed. With neither: rejected.
 
-## 11. Open decision
+## 11. Resolved decisions
 
-**Public or student-only access to materials.** v1 assumes public read with no student login. If materials should be restricted to RKGIT students, add student authentication and signed URLs. Settle this before the backend is built, because it changes the auth and storage design.
+- **Access:** public read, no student login in v1. Student-only access would require student sign-in and signed URLs.
+- **Sections:** Notes, Events, and Notices are all in v1.
+- **Portal before app:** the portal is built before the Android app so the app is tested against real data.
