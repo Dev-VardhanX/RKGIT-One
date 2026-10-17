@@ -6,3 +6,4 @@ import kotlinx.serialization.Serializable
 @Serializable object NotesRoute
 @Serializable object EventsRoute
 @Serializable object NoticesRoute
+@Serializable data class EventDetailRoute(val id: String)

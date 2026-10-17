@@ -16,8 +16,11 @@ supabase = "3.6.0"
 ktor = "3.4.3"
 kotlinxSerialization = "1.11.0"
 coil = "3.4.0"
+browser = "1.10.0"
 
 [libraries]
+androidx-browser = { group = "androidx.browser", name = "browser", version.ref = "browser" }
+
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }

@@ -1,6 +1,7 @@
 package com.rkgit.one.ui
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -25,18 +26,29 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.rkgit.one.ui.components.ScreenScaffold
+import com.rkgit.one.ui.navigation.EventDetailRoute
 import com.rkgit.one.ui.navigation.EventsRoute
 import com.rkgit.one.ui.navigation.HomeRoute
 import com.rkgit.one.ui.navigation.NoticesRoute
 import com.rkgit.one.ui.navigation.NotesRoute
+import com.rkgit.one.ui.screens.events.EventDetailScreen
+import com.rkgit.one.ui.screens.events.EventsScreen
 import com.rkgit.one.ui.screens.home.HomeScreen
+import kotlin.reflect.KClass
 
-private data class TopLevelItem(val label: String, val route: Any, val icon: ImageVector)
+private data class TopLevelItem(
+    val label: String,
+    val route: Any,
+    val icon: ImageVector,
+    /** Other routes that belong to this tab, so the tab stays highlighted on them. */
+    val related: List<KClass<*>> = emptyList()
+)
 
 private val topLevelItems = listOf(
     TopLevelItem("Home", HomeRoute, Icons.Outlined.Home),
     TopLevelItem("Notes", NotesRoute, Icons.Outlined.Description),
-    TopLevelItem("Events", EventsRoute, Icons.Outlined.Event),
+    TopLevelItem("Events", EventsRoute, Icons.Outlined.Event, listOf(EventDetailRoute::class)),
     TopLevelItem("Notices", NoticesRoute, Icons.Outlined.Notifications)
 )
 
@@ -47,11 +59,14 @@ fun AppRoot() {
     val destination = backStackEntry?.destination
 
     Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
             NavigationBar {
                 topLevelItems.forEach { item ->
                     NavigationBarItem(
-                        selected = destination?.hierarchy?.any { it.hasRoute(item.route::class) } == true,
+                        selected = destination?.hierarchy?.any { d ->
+                            d.hasRoute(item.route::class) || item.related.any { d.hasRoute(it) }
+                        } == true,
                         onClick = {
                             navController.navigate(item.route) {
                                 popUpTo(navController.graph.findStartDestination().id) { saveState = true }
@@ -73,7 +88,12 @@ fun AppRoot() {
         ) {
             composable<HomeRoute> { HomeScreen() }
             composable<NotesRoute> { Placeholder("Notes") }
-            composable<EventsRoute> { Placeholder("Events") }
+            composable<EventsRoute> {
+                EventsScreen(onEventClick = { id -> navController.navigate(EventDetailRoute(id)) })
+            }
+            composable<EventDetailRoute> {
+                EventDetailScreen(onBack = { navController.popBackStack() })
+            }
             composable<NoticesRoute> { Placeholder("Notices") }
         }
     }
@@ -81,5 +101,9 @@ fun AppRoot() {
 
 @Composable
 private fun Placeholder(name: String) {
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("$name (coming soon)") }
+    ScreenScaffold(name) { padding ->
+        Box(Modifier.padding(padding).fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text("$name (coming soon)")
+        }
+    }
 }
