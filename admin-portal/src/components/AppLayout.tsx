@@ -1,38 +1,17 @@
 import { useState } from "react"
 import { NavLink, Outlet } from "react-router-dom"
-import {
-  CalendarDays,
-  FileText,
-  LayoutDashboard,
-  LogOut,
-  Menu,
-  X,
-} from "lucide-react"
+import { CalendarDays, LayoutDashboard, LogOut, Menu, X, BookOpen, Bell } from "lucide-react";
 
 import { useAuth } from "@/auth/AuthProvider"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
 const links = [
-  {
-    to: "/",
-    label: "Dashboard",
-    icon: LayoutDashboard,
-    end: true,
-  },
-  {
-    to: "/materials",
-    label: "Study materials",
-    icon: FileText,
-    end: false,
-  },
-  {
-    to: "/events",
-    label: "Events",
-    icon: CalendarDays,
-    end: false,
-  },
-]
+  { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
+  { to: "/materials", label: "Study materials", icon: BookOpen, end: false },
+  { to: "/events", label: "Events", icon: CalendarDays, end: false },
+  { to: "/notices", label: "Notices", icon: Bell, end: false },
+];
 
 export function AppLayout() {
   const [open, setOpen] = useState(false)
