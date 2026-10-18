@@ -10,3 +10,12 @@ import kotlinx.serialization.Serializable
 @Serializable data class SubjectsRoute(val year: Int, val semester: Int)
 @Serializable data class MaterialListRoute(val subjectId: String, val subjectName: String)
 @Serializable data class NoticeDetailRoute(val id: String)
+@Serializable data class ViewerRoute(
+    val kind: String,
+    val itemId: String,
+    val title: String,
+    val fileName: String,
+    val fileType: String,
+    val fileSize: Long,
+    val remotePath: String
+)

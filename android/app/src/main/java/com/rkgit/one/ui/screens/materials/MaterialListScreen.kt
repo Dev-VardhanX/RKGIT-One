@@ -29,6 +29,7 @@ import com.rkgit.one.ui.util.toFileSize
 @Composable
 fun MaterialListScreen(
     onBack: () -> Unit,
+    onMaterialClick: (StudyMaterial) -> Unit,
     viewModel: MaterialListViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -55,7 +56,7 @@ fun MaterialListScreen(
                         }
                     } else {
                         items(materials, key = { it.id }) { material ->
-                            MaterialCard(material)
+                            MaterialCard(material, onClick = { onMaterialClick(material) })
                         }
                     }
                 }
@@ -65,8 +66,8 @@ fun MaterialListScreen(
 }
 
 @Composable
-private fun MaterialCard(material: StudyMaterial) {
-    Card(modifier = Modifier.fillMaxWidth()) {
+private fun MaterialCard(material: StudyMaterial, onClick: () -> Unit) {
+    Card(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp)

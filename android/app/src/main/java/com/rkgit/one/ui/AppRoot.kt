@@ -24,6 +24,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.rkgit.one.data.files.FileKind
 import com.rkgit.one.ui.navigation.EventDetailRoute
 import com.rkgit.one.ui.navigation.EventsRoute
 import com.rkgit.one.ui.navigation.HomeRoute
@@ -32,6 +33,7 @@ import com.rkgit.one.ui.navigation.NoticeDetailRoute
 import com.rkgit.one.ui.navigation.NoticesRoute
 import com.rkgit.one.ui.navigation.NotesRoute
 import com.rkgit.one.ui.navigation.SubjectsRoute
+import com.rkgit.one.ui.navigation.ViewerRoute
 import com.rkgit.one.ui.screens.events.EventDetailScreen
 import com.rkgit.one.ui.screens.events.EventsScreen
 import com.rkgit.one.ui.screens.home.HomeScreen
@@ -40,6 +42,7 @@ import com.rkgit.one.ui.screens.materials.NotesScreen
 import com.rkgit.one.ui.screens.materials.SubjectsScreen
 import com.rkgit.one.ui.screens.notices.NoticeDetailScreen
 import com.rkgit.one.ui.screens.notices.NoticesScreen
+import com.rkgit.one.ui.screens.viewer.ViewerScreen
 import kotlin.reflect.KClass
 
 private data class TopLevelItem(
@@ -66,23 +69,25 @@ fun AppRoot() {
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
-            NavigationBar {
-                topLevelItems.forEach { item ->
-                    val selected = destination?.hierarchy?.any { d ->
-                        d.hasRoute(item.route::class) || item.related.any { d.hasRoute(it) }
-                    } == true
-                    NavigationBarItem(
-                        selected = selected,
-                        onClick = {
-                            if (selected) {
-                                navController.popBackStack(item.route, inclusive = false)
-                            } else {
-                                navController.navigateToTab(item.route)
-                            }
-                        },
-                        icon = { Icon(item.icon, contentDescription = null) },
-                        label = { Text(item.label) }
-                    )
+            if (destination?.hasRoute(ViewerRoute::class) != true) {
+                NavigationBar {
+                    topLevelItems.forEach { item ->
+                        val selected = destination?.hierarchy?.any { d ->
+                            d.hasRoute(item.route::class) || item.related.any { d.hasRoute(it) }
+                        } == true
+                        NavigationBarItem(
+                            selected = selected,
+                            onClick = {
+                                if (selected) {
+                                    navController.popBackStack(item.route, inclusive = false)
+                                } else {
+                                    navController.navigateToTab(item.route)
+                                }
+                            },
+                            icon = { Icon(item.icon, contentDescription = null) },
+                            label = { Text(item.label) }
+                        )
+                    }
                 }
             }
         }
@@ -112,7 +117,25 @@ fun AppRoot() {
                 )
             }
             composable<MaterialListRoute> {
-                MaterialListScreen(onBack = { navController.popBackStack() })
+                MaterialListScreen(
+                    onBack = { navController.popBackStack() },
+                    onMaterialClick = { m ->
+                        navController.navigate(
+                            ViewerRoute(
+                                kind = FileKind.MATERIAL.value,
+                                itemId = m.id,
+                                title = m.title,
+                                fileName = m.fileName,
+                                fileType = m.fileType,
+                                fileSize = m.fileSize,
+                                remotePath = m.filePath
+                            )
+                        )
+                    }
+                )
+            }
+            composable<ViewerRoute> {
+                ViewerScreen(onBack = { navController.popBackStack() })
             }
             composable<EventsRoute> {
                 EventsScreen(onEventClick = { id -> navController.navigate(EventDetailRoute(id)) })
