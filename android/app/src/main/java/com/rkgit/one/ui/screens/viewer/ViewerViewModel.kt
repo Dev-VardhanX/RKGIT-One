@@ -132,14 +132,15 @@ class ViewerViewModel @Inject constructor(
 
     fun startDownload() {
         val isUpdate = downloadState.value is DownloadState.UpdateAvailable
-        val subtitle = if (FileKind.fromValue(kindValue) == FileKind.MATERIAL) "Notes" else "Notice"
+        val fallbackSubtitle = if (FileKind.fromValue(kindValue) == FileKind.NOTICE) "Notice" else "Notes"
+        val subtitle = route.subtitle.ifBlank { fallbackSubtitle }
         downloadRepository.enqueue(
             kind = FileKind.fromValue(kindValue),
             itemId = itemId,
             title = route.title,
             subtitle = subtitle,
-            year = null,
-            semester = null,
+            year = route.year.takeIf { it > 0 },
+            semester = route.semester.takeIf { it > 0 },
             fileName = fileName,
             fileType = fileType,
             sizeBytes = route.fileSize,

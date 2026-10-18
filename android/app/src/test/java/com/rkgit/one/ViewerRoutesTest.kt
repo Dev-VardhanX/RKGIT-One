@@ -65,6 +65,9 @@ class ViewerRoutesTest {
         assertEquals("image/png", route?.fileType)
         assertEquals(1024L, route?.fileSize)
         assertEquals("notices/sample.png", route?.remotePath)
+        assertEquals("Academic", route?.subtitle)
+        assertEquals(0, route?.year)
+        assertEquals(0, route?.semester)
     }
 
     @Test
@@ -99,7 +102,7 @@ class ViewerRoutesTest {
             createdAt = Instant.parse("2026-10-18T10:00:00Z")
         )
 
-        val route = material.toViewerRoute()
+        val route = material.toViewerRoute(subjectName = "Mathematics", year = 1, semester = 1)
         assertEquals("material", route.kind)
         assertEquals("mat-456", route.itemId)
         assertEquals("Math Lecture Notes", route.title)
@@ -107,5 +110,8 @@ class ViewerRoutesTest {
         assertEquals("application/pdf", route.fileType)
         assertEquals(204800L, route.fileSize)
         assertEquals("semester1/math1.pdf", route.remotePath)
+        assertEquals("Mathematics", route.subtitle)
+        assertEquals(1, route.year)
+        assertEquals(1, route.semester)
     }
 }

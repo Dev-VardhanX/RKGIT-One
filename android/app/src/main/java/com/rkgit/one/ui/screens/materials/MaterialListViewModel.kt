@@ -23,6 +23,8 @@ class MaterialListViewModel @Inject constructor(
 
     private val route = savedStateHandle.toRoute<MaterialListRoute>()
     val subjectName: String = route.subjectName
+    val year: Int = route.year
+    val semester: Int = route.semester
 
     val downloadedKeys: StateFlow<Set<String>> = downloadRepository
         .observeAllKeys()

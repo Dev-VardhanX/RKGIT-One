@@ -14,9 +14,11 @@ import androidx.work.workDataOf
 import com.rkgit.one.data.files.FileKind
 import com.rkgit.one.data.files.isCompleteDownload
 import com.rkgit.one.data.local.DownloadDao
+import com.rkgit.one.data.local.DownloadedFile
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import java.io.File
 import java.util.concurrent.TimeUnit
@@ -125,6 +127,27 @@ class DownloadRepository @Inject constructor(
 
             val downloadRow = row?.let { DownloadRow(it.remoteFilePath, it.localPath) }
             deriveDownloadState(downloadRow, currentRemotePath, snapshot)
+        }
+    }
+
+    fun observeAll(): Flow<List<DownloadedFile>> = dao.observeAll()
+
+    suspend fun removeAll() {
+        val rows = dao.observeAll().first()
+        for (row in rows) {
+            val file = File(row.localPath)
+            if (file.exists()) {
+                file.delete()
+            }
+            dao.delete(row.kind, row.itemId)
+        }
+        val downloadsDir = File(context.filesDir, "downloads")
+        if (downloadsDir.exists()) {
+            downloadsDir.walkBottomUp().forEach { file ->
+                if (file.isFile) {
+                    file.delete()
+                }
+            }
         }
     }
 

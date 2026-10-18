@@ -8,8 +8,14 @@ import kotlinx.serialization.Serializable
 @Serializable object NoticesRoute
 @Serializable data class EventDetailRoute(val id: String)
 @Serializable data class SubjectsRoute(val year: Int, val semester: Int)
-@Serializable data class MaterialListRoute(val subjectId: String, val subjectName: String)
+@Serializable data class MaterialListRoute(
+    val subjectId: String,
+    val subjectName: String,
+    val year: Int = 0,
+    val semester: Int = 0
+)
 @Serializable data class NoticeDetailRoute(val id: String)
+@Serializable data object DownloadsRoute
 @Serializable data class ViewerRoute(
     val kind: String,
     val itemId: String,
@@ -17,5 +23,8 @@ import kotlinx.serialization.Serializable
     val fileName: String,
     val fileType: String,
     val fileSize: Long,
-    val remotePath: String
+    val remotePath: String,
+    val subtitle: String = "",
+    val year: Int = 0,
+    val semester: Int = 0
 )

@@ -30,13 +30,15 @@ import com.rkgit.one.domain.model.StudyMaterial
 import com.rkgit.one.ui.components.EmptyView
 import com.rkgit.one.ui.components.LoadableContent
 import com.rkgit.one.ui.components.ScreenScaffold
+import com.rkgit.one.ui.navigation.ViewerRoute
+import com.rkgit.one.ui.navigation.toViewerRoute
 import com.rkgit.one.ui.util.toDateDisplay
 import com.rkgit.one.ui.util.toFileSize
 
 @Composable
 fun MaterialListScreen(
     onBack: () -> Unit,
-    onMaterialClick: (StudyMaterial) -> Unit,
+    onMaterialClick: (ViewerRoute) -> Unit,
     viewModel: MaterialListViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -68,7 +70,15 @@ fun MaterialListScreen(
                             MaterialCard(
                                 material = material,
                                 isDownloaded = isDownloaded,
-                                onClick = { onMaterialClick(material) }
+                                onClick = {
+                                    onMaterialClick(
+                                        material.toViewerRoute(
+                                            viewModel.subjectName,
+                                            viewModel.year,
+                                            viewModel.semester
+                                        )
+                                    )
+                                }
                             )
                         }
                     }

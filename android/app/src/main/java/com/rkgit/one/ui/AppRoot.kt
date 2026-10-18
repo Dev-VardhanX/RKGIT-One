@@ -24,6 +24,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.rkgit.one.ui.navigation.DownloadsRoute
 import com.rkgit.one.ui.navigation.EventDetailRoute
 import com.rkgit.one.ui.navigation.EventsRoute
 import com.rkgit.one.ui.navigation.HomeRoute
@@ -34,6 +35,7 @@ import com.rkgit.one.ui.navigation.NotesRoute
 import com.rkgit.one.ui.navigation.SubjectsRoute
 import com.rkgit.one.ui.navigation.ViewerRoute
 import com.rkgit.one.ui.navigation.toViewerRoute
+import com.rkgit.one.ui.screens.downloads.DownloadsScreen
 import com.rkgit.one.ui.screens.events.EventDetailScreen
 import com.rkgit.one.ui.screens.events.EventsScreen
 import com.rkgit.one.ui.screens.home.HomeScreen
@@ -55,7 +57,7 @@ private data class TopLevelItem(
 
 private val topLevelItems = listOf(
     TopLevelItem("Home", HomeRoute, Icons.Outlined.Home),
-    TopLevelItem("Notes", NotesRoute, Icons.Outlined.Description, listOf(SubjectsRoute::class, MaterialListRoute::class)),
+    TopLevelItem("Notes", NotesRoute, Icons.Outlined.Description, listOf(SubjectsRoute::class, MaterialListRoute::class, DownloadsRoute::class)),
     TopLevelItem("Events", EventsRoute, Icons.Outlined.Event, listOf(EventDetailRoute::class)),
     TopLevelItem("Notices", NoticesRoute, Icons.Outlined.Notifications, listOf(NoticeDetailRoute::class))
 )
@@ -79,7 +81,10 @@ fun AppRoot() {
                             selected = selected,
                             onClick = {
                                 if (selected) {
-                                    navController.popBackStack(item.route, inclusive = false)
+                                    val popped = navController.popBackStack(item.route, inclusive = false)
+                                    if (!popped) {
+                                        navController.navigateToTab(item.route)
+                                    }
                                 } else {
                                     navController.navigateToTab(item.route)
                                 }
@@ -101,26 +106,51 @@ fun AppRoot() {
                 HomeScreen(
                     onNoticeClick = { navController.navigate(NoticeDetailRoute(it)) },
                     onEventClick = { navController.navigate(EventDetailRoute(it)) },
-                    onMaterialClick = { id, name -> navController.navigate(MaterialListRoute(id, name)) },
+                    onMaterialClick = { id, name, y, s -> navController.navigate(MaterialListRoute(id, name, y, s)) },
+                    onDownloadsClick = { navController.navigate(DownloadsRoute) },
                     onSeeAllNotices = { navController.navigateToTab(NoticesRoute) },
                     onSeeAllNotes = { navController.navigateToTab(NotesRoute) },
                     onSeeAllEvents = { navController.navigateToTab(EventsRoute) }
                 )
             }
             composable<NotesRoute> {
-                NotesScreen(onSemesterClick = { y, s -> navController.navigate(SubjectsRoute(y, s)) })
+                NotesScreen(
+                    onSemesterClick = { y, s -> navController.navigate(SubjectsRoute(y, s)) },
+                    onDownloadsClick = { navController.navigate(DownloadsRoute) }
+                )
             }
             composable<SubjectsRoute> {
                 SubjectsScreen(
                     onBack = { navController.popBackStack() },
-                    onSubjectClick = { navController.navigate(MaterialListRoute(it.id, it.name)) }
+                    onSubjectClick = { navController.navigate(MaterialListRoute(it.id, it.name, it.year, it.semester)) }
                 )
             }
             composable<MaterialListRoute> {
                 MaterialListScreen(
                     onBack = { navController.popBackStack() },
-                    onMaterialClick = { m ->
-                        navController.navigate(m.toViewerRoute())
+                    onMaterialClick = { route ->
+                        navController.navigate(route)
+                    }
+                )
+            }
+            composable<DownloadsRoute> {
+                DownloadsScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpen = { row ->
+                        navController.navigate(
+                            ViewerRoute(
+                                kind = row.kind,
+                                itemId = row.itemId,
+                                title = row.title,
+                                fileName = row.fileName,
+                                fileType = row.fileType,
+                                fileSize = row.sizeBytes,
+                                remotePath = row.remoteFilePath,
+                                subtitle = row.subtitle,
+                                year = row.year ?: 0,
+                                semester = row.semester ?: 0
+                            )
+                        )
                     }
                 )
             }

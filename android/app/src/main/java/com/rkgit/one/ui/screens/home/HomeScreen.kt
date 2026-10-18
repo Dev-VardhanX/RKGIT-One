@@ -10,7 +10,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material3.Card
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -35,16 +39,24 @@ import com.rkgit.one.ui.util.toFileSize
 fun HomeScreen(
     onNoticeClick: (String) -> Unit,
     onEventClick: (String) -> Unit,
-    onMaterialClick: (subjectId: String, subjectName: String) -> Unit,
+    onMaterialClick: (subjectId: String, subjectName: String, year: Int, semester: Int) -> Unit,
     onSeeAllNotices: () -> Unit,
     onSeeAllNotes: () -> Unit,
     onSeeAllEvents: () -> Unit,
+    onDownloadsClick: () -> Unit,
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val refreshing by viewModel.refreshing.collectAsStateWithLifecycle()
 
-    ScreenScaffold("RKGIT ONE") { padding ->
+    ScreenScaffold(
+        title = "RKGIT ONE",
+        actions = {
+            IconButton(onClick = onDownloadsClick) {
+                Icon(Icons.Outlined.Download, contentDescription = "Downloads")
+            }
+        }
+    ) { padding ->
         Box(Modifier.padding(padding).fillMaxSize()) {
             LoadableContent(
                 state = state,
@@ -80,7 +92,14 @@ fun HomeScreen(
                             items(data.materials, key = { "material_${it.material.id}" }) { material ->
                                 RecentMaterialCard(
                                     recent = material,
-                                    onClick = { onMaterialClick(material.material.subjectId, material.subjectName) }
+                                    onClick = {
+                                        onMaterialClick(
+                                            material.material.subjectId,
+                                            material.subjectName,
+                                            material.year,
+                                            material.semester
+                                        )
+                                    }
                                 )
                             }
                         }
