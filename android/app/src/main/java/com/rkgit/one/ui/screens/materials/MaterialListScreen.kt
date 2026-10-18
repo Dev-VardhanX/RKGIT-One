@@ -4,21 +4,28 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.DownloadDone
 import androidx.compose.material3.Card
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.rkgit.one.data.downloads.downloadKey
 import com.rkgit.one.domain.model.StudyMaterial
 import com.rkgit.one.ui.components.EmptyView
 import com.rkgit.one.ui.components.LoadableContent
@@ -34,6 +41,7 @@ fun MaterialListScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val refreshing by viewModel.refreshing.collectAsStateWithLifecycle()
+    val downloadedKeys by viewModel.downloadedKeys.collectAsStateWithLifecycle()
 
     ScreenScaffold(viewModel.subjectName, onBack = onBack) { padding ->
         Box(Modifier.padding(padding).fillMaxSize()) {
@@ -56,7 +64,12 @@ fun MaterialListScreen(
                         }
                     } else {
                         items(materials, key = { it.id }) { material ->
-                            MaterialCard(material, onClick = { onMaterialClick(material) })
+                            val isDownloaded = downloadedKeys.contains(downloadKey("material", material.id))
+                            MaterialCard(
+                                material = material,
+                                isDownloaded = isDownloaded,
+                                onClick = { onMaterialClick(material) }
+                            )
                         }
                     }
                 }
@@ -66,7 +79,11 @@ fun MaterialListScreen(
 }
 
 @Composable
-private fun MaterialCard(material: StudyMaterial, onClick: () -> Unit) {
+private fun MaterialCard(
+    material: StudyMaterial,
+    isDownloaded: Boolean,
+    onClick: () -> Unit
+) {
     Card(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -86,11 +103,25 @@ private fun MaterialCard(material: StudyMaterial, onClick: () -> Unit) {
                     overflow = TextOverflow.Ellipsis
                 )
             }
-            Text(
-                "${material.typeLabel} · ${material.fileSize.toFileSize()} · ${material.createdAt.toDateDisplay()}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "${material.typeLabel} · ${material.fileSize.toFileSize()} · ${material.createdAt.toDateDisplay()}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                if (isDownloaded) {
+                    Icon(
+                        Icons.Outlined.DownloadDone,
+                        contentDescription = "Downloaded",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
         }
     }
 }

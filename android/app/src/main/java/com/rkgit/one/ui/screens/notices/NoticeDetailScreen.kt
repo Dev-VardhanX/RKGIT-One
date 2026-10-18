@@ -13,6 +13,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.outlined.AttachFile
+import androidx.compose.material.icons.outlined.DownloadDone
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -42,13 +43,14 @@ fun NoticeDetailScreen(
     viewModel: NoticeDetailViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val downloaded by viewModel.downloaded.collectAsStateWithLifecycle()
 
     ScreenScaffold("Notice", onBack = onBack) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
             when (val s = state) {
                 UiState.Loading -> LoadingView()
                 is UiState.Error -> ErrorView(s.message, onRetry = viewModel::load)
-                is UiState.Success -> NoticeDetailContent(s.data, onOpenAttachment)
+                is UiState.Success -> NoticeDetailContent(s.data, downloaded, onOpenAttachment)
             }
         }
     }
@@ -57,6 +59,7 @@ fun NoticeDetailScreen(
 @Composable
 private fun NoticeDetailContent(
     notice: Notice,
+    downloaded: Boolean,
     onOpenAttachment: (Notice) -> Unit
 ) {
     val context = LocalContext.current
@@ -127,18 +130,43 @@ private fun NoticeDetailContent(
         notice.attachment?.let { attachment ->
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(
+                    modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Icon(
-                        Icons.Outlined.AttachFile,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = "${attachment.fileName} (${attachment.fileSize.toFileSize()})",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
+                    Row(
+                        modifier = Modifier.weight(1f, fill = false),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            Icons.Outlined.AttachFile,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = "${attachment.fileName} (${attachment.fileSize.toFileSize()})",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                    if (downloaded) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                Icons.Outlined.DownloadDone,
+                                contentDescription = "Downloaded",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                text = "Downloaded",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
                 }
                 Button(
                     onClick = { onOpenAttachment(notice) },

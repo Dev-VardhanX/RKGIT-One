@@ -1,0 +1,96 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 1,
+    "identityHash": "42d2ae11bf4ac35a8fed226b2752dd14",
+    "entities": [
+      {
+        "tableName": "downloads",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`kind` TEXT NOT NULL, `itemId` TEXT NOT NULL, `title` TEXT NOT NULL, `subtitle` TEXT NOT NULL, `year` INTEGER, `semester` INTEGER, `fileName` TEXT NOT NULL, `fileType` TEXT NOT NULL, `sizeBytes` INTEGER NOT NULL, `remoteFilePath` TEXT NOT NULL, `localPath` TEXT NOT NULL, `downloadedAt` INTEGER NOT NULL, PRIMARY KEY(`kind`, `itemId`))",
+        "fields": [
+          {
+            "fieldPath": "kind",
+            "columnName": "kind",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "itemId",
+            "columnName": "itemId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "title",
+            "columnName": "title",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "subtitle",
+            "columnName": "subtitle",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "year",
+            "columnName": "year",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "semester",
+            "columnName": "semester",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "fileName",
+            "columnName": "fileName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fileType",
+            "columnName": "fileType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sizeBytes",
+            "columnName": "sizeBytes",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "remoteFilePath",
+            "columnName": "remoteFilePath",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "localPath",
+            "columnName": "localPath",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "downloadedAt",
+            "columnName": "downloadedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "kind",
+            "itemId"
+          ]
+        }
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '42d2ae11bf4ac35a8fed226b2752dd14')"
+    ]
+  }
+}

@@ -1,6 +1,12 @@
 package com.rkgit.one.ui.screens.viewer
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.os.Build
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -16,6 +22,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -23,8 +30,12 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.OpenInNew
+import androidx.compose.material.icons.outlined.Download
+import androidx.compose.material.icons.outlined.DownloadDone
+import androidx.compose.material.icons.outlined.Update
 import androidx.compose.material.icons.outlined.ZoomIn
 import androidx.compose.material.icons.outlined.ZoomOut
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -33,6 +44,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -57,16 +69,23 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import coil3.compose.AsyncImagePainter
 import coil3.request.ImageRequest
+import com.rkgit.one.data.downloads.DownloadState
+import com.rkgit.one.data.downloads.shouldConfirmMobileData
 import com.rkgit.one.ui.components.ScreenScaffold
+import com.rkgit.one.ui.util.isActiveNetworkMetered
 import com.rkgit.one.ui.util.openFileExternally
+import com.rkgit.one.ui.util.toFileSize
 import kotlinx.coroutines.flow.distinctUntilChanged
 import java.io.File
 import kotlin.math.roundToInt
@@ -80,6 +99,7 @@ fun ViewerScreen(
     viewModel: ViewerViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val downloadState by viewModel.downloadState.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
     val localFile: File? = when (val s = state) {
@@ -90,7 +110,40 @@ fun ViewerScreen(
         else -> null
     }
 
+    val isReady = state is ViewerState.PdfReady || state is ViewerState.ImageReady || state is ViewerState.OtherReady
+
     var zoom by rememberSaveable { mutableFloatStateOf(1f) }
+    var showRemoveDialog by remember { mutableStateOf(false) }
+    var showMobileDataDialog by remember { mutableStateOf(false) }
+    var notificationPermissionRequested by rememberSaveable { mutableStateOf(false) }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) {
+        // Download starts regardless of response
+    }
+
+    LaunchedEffect(downloadState) {
+        if (downloadState is DownloadState.Failed) {
+            Toast.makeText(context, (downloadState as DownloadState.Failed).reason, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    val handleDownloadClick: () -> Unit = {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED &&
+            !notificationPermissionRequested
+        ) {
+            notificationPermissionRequested = true
+            permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+
+        if (shouldConfirmMobileData(viewModel.fileSize, isActiveNetworkMetered(context))) {
+            showMobileDataDialog = true
+        } else {
+            viewModel.startDownload()
+        }
+    }
 
     ScreenScaffold(
         title = viewModel.title,
@@ -125,6 +178,47 @@ fun ViewerScreen(
                     Icon(Icons.Outlined.ZoomIn, contentDescription = "Zoom in")
                 }
             }
+
+            if (isReady) {
+                when (val ds = downloadState) {
+                    is DownloadState.NotDownloaded, is DownloadState.Failed -> {
+                        IconButton(onClick = handleDownloadClick) {
+                            Icon(Icons.Outlined.Download, contentDescription = "Download")
+                        }
+                    }
+                    is DownloadState.Downloading -> {
+                        IconButton(
+                            onClick = viewModel::cancelDownload,
+                            modifier = Modifier.semantics { contentDescription = "Cancel download" }
+                        ) {
+                            val p = ds.progress
+                            if (p != null) {
+                                CircularProgressIndicator(
+                                    progress = { p },
+                                    modifier = Modifier.size(24.dp),
+                                    strokeWidth = 2.5.dp
+                                )
+                            } else {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(24.dp),
+                                    strokeWidth = 2.5.dp
+                                )
+                            }
+                        }
+                    }
+                    is DownloadState.Downloaded -> {
+                        IconButton(onClick = { showRemoveDialog = true }) {
+                            Icon(Icons.Outlined.DownloadDone, contentDescription = "Downloaded. Tap to remove")
+                        }
+                    }
+                    is DownloadState.UpdateAvailable -> {
+                        IconButton(onClick = handleDownloadClick) {
+                            Icon(Icons.Outlined.Update, contentDescription = "Update download")
+                        }
+                    }
+                }
+            }
+
             if (localFile != null) {
                 IconButton(onClick = {
                     context.openFileExternally(localFile, viewModel.fileType)
@@ -167,6 +261,48 @@ fun ViewerScreen(
                 )
             }
         }
+    }
+
+    if (showRemoveDialog) {
+        AlertDialog(
+            onDismissRequest = { showRemoveDialog = false },
+            title = { Text("Remove download?") },
+            text = { Text("You will need an internet connection to open this file again.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showRemoveDialog = false
+                    viewModel.removeDownload()
+                }) {
+                    Text("Remove")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRemoveDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    if (showMobileDataDialog) {
+        AlertDialog(
+            onDismissRequest = { showMobileDataDialog = false },
+            title = { Text("Download on mobile data?") },
+            text = { Text("This file is ${viewModel.fileSize.toFileSize()} and you're not on Wi-Fi.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showMobileDataDialog = false
+                    viewModel.startDownload()
+                }) {
+                    Text("Download")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showMobileDataDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }
 

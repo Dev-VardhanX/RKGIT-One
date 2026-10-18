@@ -4,6 +4,8 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.toRoute
+import com.rkgit.one.data.downloads.DownloadRepository
+import com.rkgit.one.data.downloads.DownloadState
 import com.rkgit.one.data.files.ContentKind
 import com.rkgit.one.data.files.DownloadException
 import com.rkgit.one.data.files.FileCache
@@ -19,8 +21,10 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.io.File
 import javax.inject.Inject
@@ -37,13 +41,15 @@ sealed interface ViewerState {
 class ViewerViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val fileCache: FileCache,
-    private val prefs: ViewerPrefs
+    private val prefs: ViewerPrefs,
+    private val downloadRepository: DownloadRepository
 ) : ViewModel() {
 
     private val route = savedStateHandle.toRoute<ViewerRoute>()
     val title: String = route.title
     val fileName: String = route.fileName
     val fileType: String = route.fileType
+    val fileSize: Long = route.fileSize
     val kindValue: String = route.kind
     val itemId: String = route.itemId
     val contentKind: ContentKind = contentKindOf(fileType)
@@ -53,6 +59,10 @@ class ViewerViewModel @Inject constructor(
     private val _state = MutableStateFlow<ViewerState>(ViewerState.Loading(null))
     val state: StateFlow<ViewerState> = _state.asStateFlow()
 
+    val downloadState: StateFlow<DownloadState> = downloadRepository
+        .observeState(FileKind.fromValue(kindValue), itemId, route.remotePath)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), DownloadState.NotDownloaded)
+
     private var loadJob: Job? = null
     private var currentPager: PdfPager? = null
 
@@ -61,8 +71,10 @@ class ViewerViewModel @Inject constructor(
         loadJob = viewModelScope.launch {
             _state.value = ViewerState.Loading(null)
             try {
-                val file = fileCache.ensureLocal(
-                    kind = FileKind.fromValue(kindValue),
+                val fileKind = FileKind.fromValue(kindValue)
+                val persistentFile = downloadRepository.downloadedFileFor(fileKind, itemId, route.remotePath)
+                val file = persistentFile ?: fileCache.ensureLocal(
+                    kind = fileKind,
                     itemId = itemId,
                     remotePath = route.remotePath,
                     fileName = fileName,
@@ -115,6 +127,34 @@ class ViewerViewModel @Inject constructor(
             } catch (e: Exception) {
                 _state.value = ViewerState.Error(e.toUserMessage(), null)
             }
+        }
+    }
+
+    fun startDownload() {
+        val isUpdate = downloadState.value is DownloadState.UpdateAvailable
+        val subtitle = if (FileKind.fromValue(kindValue) == FileKind.MATERIAL) "Notes" else "Notice"
+        downloadRepository.enqueue(
+            kind = FileKind.fromValue(kindValue),
+            itemId = itemId,
+            title = route.title,
+            subtitle = subtitle,
+            year = null,
+            semester = null,
+            fileName = fileName,
+            fileType = fileType,
+            sizeBytes = route.fileSize,
+            remotePath = route.remotePath,
+            isUpdate = isUpdate
+        )
+    }
+
+    fun cancelDownload() {
+        downloadRepository.cancel(FileKind.fromValue(kindValue), itemId)
+    }
+
+    fun removeDownload() {
+        viewModelScope.launch {
+            downloadRepository.remove(FileKind.fromValue(kindValue), itemId)
         }
     }
 
