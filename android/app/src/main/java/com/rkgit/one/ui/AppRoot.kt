@@ -27,6 +27,7 @@ import com.rkgit.one.ui.navigation.EventDetailRoute
 import com.rkgit.one.ui.navigation.EventsRoute
 import com.rkgit.one.ui.navigation.HomeRoute
 import com.rkgit.one.ui.navigation.MaterialListRoute
+import com.rkgit.one.ui.navigation.NoticeDetailRoute
 import com.rkgit.one.ui.navigation.NoticesRoute
 import com.rkgit.one.ui.navigation.NotesRoute
 import com.rkgit.one.ui.navigation.SubjectsRoute
@@ -36,10 +37,8 @@ import com.rkgit.one.ui.screens.home.HomeScreen
 import com.rkgit.one.ui.screens.materials.MaterialListScreen
 import com.rkgit.one.ui.screens.materials.NotesScreen
 import com.rkgit.one.ui.screens.materials.SubjectsScreen
-import com.rkgit.one.ui.components.ScreenScaffold
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.ui.Alignment
+import com.rkgit.one.ui.screens.notices.NoticeDetailScreen
+import com.rkgit.one.ui.screens.notices.NoticesScreen
 import kotlin.reflect.KClass
 
 private data class TopLevelItem(
@@ -54,7 +53,7 @@ private val topLevelItems = listOf(
     TopLevelItem("Home", HomeRoute, Icons.Outlined.Home),
     TopLevelItem("Notes", NotesRoute, Icons.Outlined.Description, listOf(SubjectsRoute::class, MaterialListRoute::class)),
     TopLevelItem("Events", EventsRoute, Icons.Outlined.Event, listOf(EventDetailRoute::class)),
-    TopLevelItem("Notices", NoticesRoute, Icons.Outlined.Notifications)
+    TopLevelItem("Notices", NoticesRoute, Icons.Outlined.Notifications, listOf(NoticeDetailRoute::class))
 )
 
 @Composable
@@ -115,16 +114,12 @@ fun AppRoot() {
             composable<EventDetailRoute> {
                 EventDetailScreen(onBack = { navController.popBackStack() })
             }
-            composable<NoticesRoute> { Placeholder("Notices") }
-        }
-    }
-}
-
-@Composable
-private fun Placeholder(name: String) {
-    ScreenScaffold(name) { padding ->
-        Box(Modifier.padding(padding).fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("$name (coming soon)")
+            composable<NoticesRoute> {
+                NoticesScreen(onNoticeClick = { id -> navController.navigate(NoticeDetailRoute(id)) })
+            }
+            composable<NoticeDetailRoute> {
+                NoticeDetailScreen(onBack = { navController.popBackStack() })
+            }
         }
     }
 }
