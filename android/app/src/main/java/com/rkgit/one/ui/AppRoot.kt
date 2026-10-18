@@ -1,8 +1,6 @@
 package com.rkgit.one.ui
 
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Description
@@ -16,7 +14,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.navigation.NavDestination.Companion.hasRoute
@@ -26,15 +23,23 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.rkgit.one.ui.components.ScreenScaffold
 import com.rkgit.one.ui.navigation.EventDetailRoute
 import com.rkgit.one.ui.navigation.EventsRoute
 import com.rkgit.one.ui.navigation.HomeRoute
+import com.rkgit.one.ui.navigation.MaterialListRoute
 import com.rkgit.one.ui.navigation.NoticesRoute
 import com.rkgit.one.ui.navigation.NotesRoute
+import com.rkgit.one.ui.navigation.SubjectsRoute
 import com.rkgit.one.ui.screens.events.EventDetailScreen
 import com.rkgit.one.ui.screens.events.EventsScreen
 import com.rkgit.one.ui.screens.home.HomeScreen
+import com.rkgit.one.ui.screens.materials.MaterialListScreen
+import com.rkgit.one.ui.screens.materials.NotesScreen
+import com.rkgit.one.ui.screens.materials.SubjectsScreen
+import com.rkgit.one.ui.components.ScreenScaffold
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.Alignment
 import kotlin.reflect.KClass
 
 private data class TopLevelItem(
@@ -47,7 +52,7 @@ private data class TopLevelItem(
 
 private val topLevelItems = listOf(
     TopLevelItem("Home", HomeRoute, Icons.Outlined.Home),
-    TopLevelItem("Notes", NotesRoute, Icons.Outlined.Description),
+    TopLevelItem("Notes", NotesRoute, Icons.Outlined.Description, listOf(SubjectsRoute::class, MaterialListRoute::class)),
     TopLevelItem("Events", EventsRoute, Icons.Outlined.Event, listOf(EventDetailRoute::class)),
     TopLevelItem("Notices", NoticesRoute, Icons.Outlined.Notifications)
 )
@@ -63,15 +68,20 @@ fun AppRoot() {
         bottomBar = {
             NavigationBar {
                 topLevelItems.forEach { item ->
+                    val selected = destination?.hierarchy?.any { d ->
+                        d.hasRoute(item.route::class) || item.related.any { d.hasRoute(it) }
+                    } == true
                     NavigationBarItem(
-                        selected = destination?.hierarchy?.any { d ->
-                            d.hasRoute(item.route::class) || item.related.any { d.hasRoute(it) }
-                        } == true,
+                        selected = selected,
                         onClick = {
-                            navController.navigate(item.route) {
-                                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                                launchSingleTop = true
-                                restoreState = true
+                            if (selected) {
+                                navController.popBackStack(item.route, inclusive = false)
+                            } else {
+                                navController.navigate(item.route) {
+                                    popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
                             }
                         },
                         icon = { Icon(item.icon, contentDescription = null) },
@@ -87,7 +97,18 @@ fun AppRoot() {
             modifier = Modifier.padding(padding)
         ) {
             composable<HomeRoute> { HomeScreen() }
-            composable<NotesRoute> { Placeholder("Notes") }
+            composable<NotesRoute> {
+                NotesScreen(onSemesterClick = { y, s -> navController.navigate(SubjectsRoute(y, s)) })
+            }
+            composable<SubjectsRoute> {
+                SubjectsScreen(
+                    onBack = { navController.popBackStack() },
+                    onSubjectClick = { navController.navigate(MaterialListRoute(it.id, it.name)) }
+                )
+            }
+            composable<MaterialListRoute> {
+                MaterialListScreen(onBack = { navController.popBackStack() })
+            }
             composable<EventsRoute> {
                 EventsScreen(onEventClick = { id -> navController.navigate(EventDetailRoute(id)) })
             }

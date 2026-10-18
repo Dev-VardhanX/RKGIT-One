@@ -1,0 +1,148 @@
+package com.rkgit.one.ui.screens.notices
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PushPin
+import androidx.compose.material.icons.outlined.AttachFile
+import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.rkgit.one.domain.model.Notice
+import com.rkgit.one.ui.UiState
+import com.rkgit.one.ui.components.ErrorView
+import com.rkgit.one.ui.components.LoadingView
+import com.rkgit.one.ui.components.ScreenScaffold
+import com.rkgit.one.ui.util.isSafeWebUrl
+import com.rkgit.one.ui.util.openInCustomTab
+import com.rkgit.one.ui.util.toDateDisplay
+import com.rkgit.one.ui.util.toFileSize
+
+@Composable
+fun NoticeDetailScreen(
+    onBack: () -> Unit,
+    viewModel: NoticeDetailViewModel = hiltViewModel()
+) {
+    val state by viewModel.state.collectAsStateWithLifecycle()
+
+    ScreenScaffold("Notice", onBack = onBack) { padding ->
+        Column(Modifier.padding(padding).fillMaxSize()) {
+            when (val s = state) {
+                UiState.Loading -> LoadingView()
+                is UiState.Error -> ErrorView(s.message, onRetry = viewModel::load)
+                is UiState.Success -> NoticeDetailContent(s.data)
+            }
+        }
+    }
+}
+
+@Composable
+private fun NoticeDetailContent(notice: Notice) {
+    val context = LocalContext.current
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            if (notice.pinned) {
+                Icon(
+                    Icons.Filled.PushPin,
+                    contentDescription = "Pinned",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+            Text(
+                text = notice.category.label,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
+
+        Text(
+            text = notice.title,
+            style = MaterialTheme.typography.headlineSmall
+        )
+
+        Text(
+            text = "Published ${notice.publishedAt.toDateDisplay()}",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        notice.expiresAt?.let { expiresAt ->
+            Text(
+                text = "Valid until ${expiresAt.toDateDisplay()}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+        notice.body?.let { body ->
+            SelectionContainer {
+                Text(
+                    text = body,
+                    style = MaterialTheme.typography.bodyLarge
+                )
+            }
+        }
+
+        notice.linkUrl?.takeIf { it.isSafeWebUrl() }?.let { url ->
+            Button(
+                onClick = { context.openInCustomTab(url) },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Open link")
+            }
+        }
+
+        notice.attachment?.let { attachment ->
+            // This row becomes Open/Download in a later step.
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        Icons.Outlined.AttachFile,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "${attachment.fileName} (${attachment.fileSize.toFileSize()})",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+                Text(
+                    text = "Opening and downloading attachments is coming soon",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
