@@ -1,8 +1,10 @@
 package com.rkgit.one.data.repository
 
+import com.rkgit.one.data.remote.dto.RecentMaterialDto
 import com.rkgit.one.data.remote.dto.StudyMaterialDto
 import com.rkgit.one.data.remote.dto.SubjectDto
 import com.rkgit.one.data.remote.dto.toDomain
+import com.rkgit.one.domain.model.RecentMaterial
 import com.rkgit.one.domain.model.StudyMaterial
 import com.rkgit.one.domain.model.Subject
 import io.github.jan.supabase.SupabaseClient
@@ -35,5 +37,14 @@ class MaterialsRepository @Inject constructor(
                 order("created_at", Order.DESCENDING)
             }
             .decodeList<StudyMaterialDto>()
+            .map { it.toDomain() }
+
+    suspend fun recent(limit: Long = 5): List<RecentMaterial> =
+        supabase.from("study_materials")
+            .select(Columns.raw("*, subjects(name, year, semester)")) {
+                order("created_at", Order.DESCENDING)
+                limit(limit)
+            }
+            .decodeList<RecentMaterialDto>()
             .map { it.toDomain() }
 }

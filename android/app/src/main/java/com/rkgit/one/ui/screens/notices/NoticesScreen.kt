@@ -118,7 +118,7 @@ fun NoticesScreen(
 }
 
 @Composable
-private fun NoticeCard(
+internal fun NoticeCard(
     notice: Notice,
     onClick: () -> Unit
 ) {

@@ -16,6 +16,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.navigation.NavController
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -76,11 +77,7 @@ fun AppRoot() {
                             if (selected) {
                                 navController.popBackStack(item.route, inclusive = false)
                             } else {
-                                navController.navigate(item.route) {
-                                    popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
+                                navController.navigateToTab(item.route)
                             }
                         },
                         icon = { Icon(item.icon, contentDescription = null) },
@@ -95,7 +92,16 @@ fun AppRoot() {
             startDestination = HomeRoute,
             modifier = Modifier.padding(padding)
         ) {
-            composable<HomeRoute> { HomeScreen() }
+            composable<HomeRoute> {
+                HomeScreen(
+                    onNoticeClick = { navController.navigate(NoticeDetailRoute(it)) },
+                    onEventClick = { navController.navigate(EventDetailRoute(it)) },
+                    onMaterialClick = { id, name -> navController.navigate(MaterialListRoute(id, name)) },
+                    onSeeAllNotices = { navController.navigateToTab(NoticesRoute) },
+                    onSeeAllNotes = { navController.navigateToTab(NotesRoute) },
+                    onSeeAllEvents = { navController.navigateToTab(EventsRoute) }
+                )
+            }
             composable<NotesRoute> {
                 NotesScreen(onSemesterClick = { y, s -> navController.navigate(SubjectsRoute(y, s)) })
             }
@@ -121,5 +127,13 @@ fun AppRoot() {
                 NoticeDetailScreen(onBack = { navController.popBackStack() })
             }
         }
+    }
+}
+
+private fun NavController.navigateToTab(route: Any) {
+    navigate(route) {
+        popUpTo(graph.findStartDestination().id) { saveState = true }
+        launchSingleTop = true
+        restoreState = true
     }
 }

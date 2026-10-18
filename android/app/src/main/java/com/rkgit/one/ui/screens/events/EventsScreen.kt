@@ -93,7 +93,7 @@ private fun SectionHeader(text: String) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun EventCard(event: Event, onClick: (String) -> Unit) {
+internal fun EventCard(event: Event, onClick: (String) -> Unit) {
     Card(onClick = { onClick(event.id) }, modifier = Modifier.fillMaxWidth()) {
         Column {
             event.posterUrl?.let {
