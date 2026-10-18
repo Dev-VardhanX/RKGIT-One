@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -39,30 +40,39 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil3.compose.AsyncImage
+import coil3.compose.AsyncImagePainter
+import coil3.request.ImageRequest
 import com.rkgit.one.ui.components.ScreenScaffold
 import com.rkgit.one.ui.util.openFileExternally
 import kotlinx.coroutines.flow.distinctUntilChanged
 import java.io.File
 import kotlin.math.roundToInt
 
-private val zoomSteps = listOf(1.0f, 1.5f, 2.0f, 3.0f)
+private val pdfZoomSteps = listOf(1.0f, 1.5f, 2.0f, 3.0f)
+private val imageZoomSteps = listOf(1.0f, 2.0f, 3.0f, 4.0f)
 
 @Composable
 fun ViewerScreen(
@@ -74,6 +84,7 @@ fun ViewerScreen(
 
     val localFile: File? = when (val s = state) {
         is ViewerState.PdfReady -> s.file
+        is ViewerState.ImageReady -> s.file
         is ViewerState.OtherReady -> s.file
         is ViewerState.Error -> s.file
         else -> null
@@ -87,15 +98,29 @@ fun ViewerScreen(
         actions = {
             if (state is ViewerState.PdfReady) {
                 IconButton(onClick = {
-                    val prevIdx = zoomSteps.indexOfLast { it < zoom - 0.01f }.coerceAtLeast(0)
-                    zoom = zoomSteps[prevIdx]
+                    val prevIdx = pdfZoomSteps.indexOfLast { it < zoom - 0.01f }.coerceAtLeast(0)
+                    zoom = pdfZoomSteps[prevIdx]
                 }) {
                     Icon(Icons.Outlined.ZoomOut, contentDescription = "Zoom out")
                 }
                 IconButton(onClick = {
-                    val nextIdx = zoomSteps.indexOfFirst { it > zoom + 0.01f }
-                        .let { if (it == -1) zoomSteps.lastIndex else it }
-                    zoom = zoomSteps[nextIdx]
+                    val nextIdx = pdfZoomSteps.indexOfFirst { it > zoom + 0.01f }
+                        .let { if (it == -1) pdfZoomSteps.lastIndex else it }
+                    zoom = pdfZoomSteps[nextIdx]
+                }) {
+                    Icon(Icons.Outlined.ZoomIn, contentDescription = "Zoom in")
+                }
+            } else if (state is ViewerState.ImageReady) {
+                IconButton(onClick = {
+                    val prevIdx = imageZoomSteps.indexOfLast { it < zoom - 0.01f }.coerceAtLeast(0)
+                    zoom = imageZoomSteps[prevIdx]
+                }) {
+                    Icon(Icons.Outlined.ZoomOut, contentDescription = "Zoom out")
+                }
+                IconButton(onClick = {
+                    val nextIdx = imageZoomSteps.indexOfFirst { it > zoom + 0.01f }
+                        .let { if (it == -1) imageZoomSteps.lastIndex else it }
+                    zoom = imageZoomSteps[nextIdx]
                 }) {
                     Icon(Icons.Outlined.ZoomIn, contentDescription = "Zoom in")
                 }
@@ -132,6 +157,129 @@ fun ViewerScreen(
                     zoom = zoom,
                     onZoomChange = { zoom = it },
                     viewModel = viewModel
+                )
+                is ViewerState.ImageReady -> ImageViewer(
+                    file = s.file,
+                    fileType = viewModel.fileType,
+                    zoom = zoom,
+                    onZoomChange = { zoom = it },
+                    onRedownload = viewModel::redownload
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ImageViewer(
+    file: File,
+    fileType: String,
+    zoom: Float,
+    onZoomChange: (Float) -> Unit,
+    onRedownload: () -> Unit
+) {
+    val context = LocalContext.current
+    var offset by remember { mutableStateOf(Offset.Zero) }
+    var containerSize by remember { mutableStateOf(IntSize.Zero) }
+    var imageState by remember { mutableStateOf<AsyncImagePainter.State>(AsyncImagePainter.State.Empty) }
+    val currentZoom by rememberUpdatedState(zoom)
+
+    fun clampOffset(proposed: Offset, targetZoom: Float): Offset {
+        if (targetZoom <= 1.01f) return Offset.Zero
+        val maxX = (containerSize.width * (targetZoom - 1f) / 2f).coerceAtLeast(0f)
+        val maxY = (containerSize.height * (targetZoom - 1f) / 2f).coerceAtLeast(0f)
+        return Offset(
+            x = proposed.x.coerceIn(-maxX, maxX),
+            y = proposed.y.coerceIn(-maxY, maxY)
+        )
+    }
+
+    LaunchedEffect(zoom) {
+        if (zoom <= 1.01f) {
+            offset = Offset.Zero
+        } else {
+            offset = clampOffset(offset, zoom)
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .onSizeChanged { containerSize = it }
+            .pointerInput(Unit) {
+                detectTransformGestures { _, pan, gestureZoom, _ ->
+                    val newZoom = (currentZoom * gestureZoom).coerceIn(1f, 4f)
+                    onZoomChange(newZoom)
+                    offset = clampOffset(offset + pan, newZoom)
+                }
+            }
+    ) {
+        AsyncImage(
+            model = ImageRequest.Builder(LocalContext.current)
+                .data(file)
+                .size(2048)
+                .build(),
+            contentDescription = "Attachment image",
+            contentScale = ContentScale.Fit,
+            onState = { imageState = it },
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer(
+                    scaleX = zoom,
+                    scaleY = zoom,
+                    translationX = offset.x,
+                    translationY = offset.y
+                )
+        )
+
+        when (imageState) {
+            is AsyncImagePainter.State.Loading -> {
+                CircularProgressIndicator(
+                    modifier = Modifier.align(Alignment.Center)
+                )
+            }
+            is AsyncImagePainter.State.Error -> {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(32.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        "This image couldn't be displayed. It may be damaged.",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.error,
+                        textAlign = TextAlign.Center
+                    )
+                    Button(onClick = onRedownload) {
+                        Text("Re-download")
+                    }
+                    Button(onClick = { context.openFileExternally(file, fileType) }) {
+                        Text("Open in another app")
+                    }
+                }
+            }
+            else -> {
+                // Success or Empty
+            }
+        }
+
+        if (zoom > 1.01f) {
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(16.dp),
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.inverseSurface.copy(alpha = 0.85f),
+                tonalElevation = 2.dp
+            ) {
+                Text(
+                    text = "${(zoom * 100).roundToInt()}%",
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.inverseOnSurface
                 )
             }
         }

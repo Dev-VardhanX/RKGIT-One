@@ -24,7 +24,6 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.rkgit.one.data.files.FileKind
 import com.rkgit.one.ui.navigation.EventDetailRoute
 import com.rkgit.one.ui.navigation.EventsRoute
 import com.rkgit.one.ui.navigation.HomeRoute
@@ -34,6 +33,7 @@ import com.rkgit.one.ui.navigation.NoticesRoute
 import com.rkgit.one.ui.navigation.NotesRoute
 import com.rkgit.one.ui.navigation.SubjectsRoute
 import com.rkgit.one.ui.navigation.ViewerRoute
+import com.rkgit.one.ui.navigation.toViewerRoute
 import com.rkgit.one.ui.screens.events.EventDetailScreen
 import com.rkgit.one.ui.screens.events.EventsScreen
 import com.rkgit.one.ui.screens.home.HomeScreen
@@ -120,17 +120,7 @@ fun AppRoot() {
                 MaterialListScreen(
                     onBack = { navController.popBackStack() },
                     onMaterialClick = { m ->
-                        navController.navigate(
-                            ViewerRoute(
-                                kind = FileKind.MATERIAL.value,
-                                itemId = m.id,
-                                title = m.title,
-                                fileName = m.fileName,
-                                fileType = m.fileType,
-                                fileSize = m.fileSize,
-                                remotePath = m.filePath
-                            )
-                        )
+                        navController.navigate(m.toViewerRoute())
                     }
                 )
             }
@@ -147,7 +137,12 @@ fun AppRoot() {
                 NoticesScreen(onNoticeClick = { id -> navController.navigate(NoticeDetailRoute(id)) })
             }
             composable<NoticeDetailRoute> {
-                NoticeDetailScreen(onBack = { navController.popBackStack() })
+                NoticeDetailScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenAttachment = { notice ->
+                        notice.toViewerRoute()?.let { navController.navigate(it) }
+                    }
+                )
             }
         }
     }

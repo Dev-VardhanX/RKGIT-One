@@ -4,10 +4,12 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.toRoute
+import com.rkgit.one.data.files.ContentKind
 import com.rkgit.one.data.files.DownloadException
 import com.rkgit.one.data.files.FileCache
 import com.rkgit.one.data.files.FileKind
 import com.rkgit.one.data.files.ViewerPrefs
+import com.rkgit.one.data.files.contentKindOf
 import com.rkgit.one.data.files.resumeKey
 import com.rkgit.one.ui.navigation.ViewerRoute
 import com.rkgit.one.ui.toUserMessage
@@ -26,6 +28,7 @@ import javax.inject.Inject
 sealed interface ViewerState {
     data class Loading(val progress: Float?) : ViewerState
     data class PdfReady(val file: File, val pager: PdfPager) : ViewerState
+    data class ImageReady(val file: File) : ViewerState
     data class OtherReady(val file: File) : ViewerState
     data class Error(val message: String, val file: File?) : ViewerState
 }
@@ -43,7 +46,8 @@ class ViewerViewModel @Inject constructor(
     val fileType: String = route.fileType
     val kindValue: String = route.kind
     val itemId: String = route.itemId
-    val isPdf: Boolean = fileType == "application/pdf"
+    val contentKind: ContentKind = contentKindOf(fileType)
+    val isPdf: Boolean = contentKind == ContentKind.PDF
     val resumeKey: String = resumeKey(kindValue, itemId)
 
     private val _state = MutableStateFlow<ViewerState>(ViewerState.Loading(null))
@@ -66,37 +70,43 @@ class ViewerViewModel @Inject constructor(
                     onProgress = { _state.value = ViewerState.Loading(it) }
                 )
 
-                if (isPdf) {
-                    try {
-                        val pager = kotlinx.coroutines.withContext(Dispatchers.IO) {
-                            PdfPager(file)
+                when (contentKind) {
+                    ContentKind.PDF -> {
+                        try {
+                            val pager = kotlinx.coroutines.withContext(Dispatchers.IO) {
+                                PdfPager(file)
+                            }
+                            if (pager.pageCount == 0) {
+                                pager.close()
+                                _state.value = ViewerState.Error("This PDF has no pages.", file)
+                            } else {
+                                currentPager = pager
+                                _state.value = ViewerState.PdfReady(file, pager)
+                            }
+                        } catch (_: SecurityException) {
+                            _state.value = ViewerState.Error(
+                                "This PDF is password protected and can't be shown here.", file
+                            )
+                        } catch (_: java.io.IOException) {
+                            _state.value = ViewerState.Error(
+                                "This file couldn't be opened. It may be damaged.", file
+                            )
+                        } catch (_: IllegalArgumentException) {
+                            _state.value = ViewerState.Error(
+                                "This file couldn't be opened. It may be damaged.", file
+                            )
+                        } catch (_: IllegalStateException) {
+                            _state.value = ViewerState.Error(
+                                "This file couldn't be opened. It may be damaged.", file
+                            )
                         }
-                        if (pager.pageCount == 0) {
-                            pager.close()
-                            _state.value = ViewerState.Error("This PDF has no pages.", file)
-                        } else {
-                            currentPager = pager
-                            _state.value = ViewerState.PdfReady(file, pager)
-                        }
-                    } catch (_: SecurityException) {
-                        _state.value = ViewerState.Error(
-                            "This PDF is password protected and can't be shown here.", file
-                        )
-                    } catch (_: java.io.IOException) {
-                        _state.value = ViewerState.Error(
-                            "This file couldn't be opened. It may be damaged.", file
-                        )
-                    } catch (_: IllegalArgumentException) {
-                        _state.value = ViewerState.Error(
-                            "This file couldn't be opened. It may be damaged.", file
-                        )
-                    } catch (_: IllegalStateException) {
-                        _state.value = ViewerState.Error(
-                            "This file couldn't be opened. It may be damaged.", file
-                        )
                     }
-                } else {
-                    _state.value = ViewerState.OtherReady(file)
+                    ContentKind.IMAGE -> {
+                        _state.value = ViewerState.ImageReady(file)
+                    }
+                    ContentKind.OTHER -> {
+                        _state.value = ViewerState.OtherReady(file)
+                    }
                 }
             } catch (e: CancellationException) {
                 throw e
@@ -111,6 +121,7 @@ class ViewerViewModel @Inject constructor(
     fun redownload() {
         val currentFile = when (val s = _state.value) {
             is ViewerState.PdfReady -> s.file
+            is ViewerState.ImageReady -> s.file
             is ViewerState.OtherReady -> s.file
             is ViewerState.Error -> s.file
             else -> null

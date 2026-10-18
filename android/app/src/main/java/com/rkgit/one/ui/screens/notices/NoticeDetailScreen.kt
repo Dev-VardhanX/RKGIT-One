@@ -38,6 +38,7 @@ import com.rkgit.one.ui.util.toFileSize
 @Composable
 fun NoticeDetailScreen(
     onBack: () -> Unit,
+    onOpenAttachment: (Notice) -> Unit,
     viewModel: NoticeDetailViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -47,14 +48,17 @@ fun NoticeDetailScreen(
             when (val s = state) {
                 UiState.Loading -> LoadingView()
                 is UiState.Error -> ErrorView(s.message, onRetry = viewModel::load)
-                is UiState.Success -> NoticeDetailContent(s.data)
+                is UiState.Success -> NoticeDetailContent(s.data, onOpenAttachment)
             }
         }
     }
 }
 
 @Composable
-private fun NoticeDetailContent(notice: Notice) {
+private fun NoticeDetailContent(
+    notice: Notice,
+    onOpenAttachment: (Notice) -> Unit
+) {
     val context = LocalContext.current
 
     Column(
@@ -121,8 +125,7 @@ private fun NoticeDetailContent(notice: Notice) {
         }
 
         notice.attachment?.let { attachment ->
-            // This row becomes Open/Download in a later step.
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -137,11 +140,12 @@ private fun NoticeDetailContent(notice: Notice) {
                         style = MaterialTheme.typography.bodyMedium
                     )
                 }
-                Text(
-                    text = "Opening and downloading attachments is coming soon",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Button(
+                    onClick = { onOpenAttachment(notice) },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Open attachment")
+                }
             }
         }
     }
