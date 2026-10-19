@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -35,7 +36,13 @@ fun EmptyView(message: String, modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun ErrorView(message: String, onRetry: () -> Unit, modifier: Modifier = Modifier) {
+fun ErrorView(
+    message: String,
+    onRetry: () -> Unit,
+    modifier: Modifier = Modifier,
+    offline: Boolean = false
+) {
+    val openDownloads = LocalOpenDownloads.current
     Column(
         modifier = modifier.fillMaxSize().padding(32.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
@@ -48,5 +55,17 @@ fun ErrorView(message: String, onRetry: () -> Unit, modifier: Modifier = Modifie
             textAlign = TextAlign.Center
         )
         Button(onClick = onRetry) { Text("Retry") }
+        if (offline && openDownloads != null) {
+            Text(
+                "You're offline. View your Downloads.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
+            OutlinedButton(onClick = openDownloads) {
+                Text("Open Downloads")
+            }
+        }
     }
 }
+

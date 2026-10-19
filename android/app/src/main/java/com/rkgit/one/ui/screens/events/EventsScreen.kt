@@ -14,25 +14,21 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.rkgit.one.domain.model.Event
-import com.rkgit.one.ui.UiState
 import com.rkgit.one.ui.components.EmptyView
-import com.rkgit.one.ui.components.ErrorView
-import com.rkgit.one.ui.components.LoadingView
+import com.rkgit.one.ui.components.LoadableContent
 import com.rkgit.one.ui.components.ScreenScaffold
 import com.rkgit.one.ui.util.toDisplay
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EventsScreen(
     onEventClick: (String) -> Unit,
@@ -43,41 +39,38 @@ fun EventsScreen(
 
     ScreenScaffold("Events") { padding ->
         Box(Modifier.padding(padding).fillMaxSize()) {
-            when (val s = state) {
-                UiState.Loading -> LoadingView()
-                is UiState.Error -> ErrorView(s.message, onRetry = viewModel::load)
-                is UiState.Success -> PullToRefreshBox(
-                    isRefreshing = refreshing,
-                    onRefresh = viewModel::refresh,
-                    modifier = Modifier.fillMaxSize()
+            LoadableContent(
+                state = state,
+                refreshing = refreshing,
+                onRefresh = viewModel::refresh,
+                onRetry = viewModel::load,
+                refreshErrors = viewModel.refreshErrors
+            ) { data ->
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    val data = s.data
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        if (data.upcoming.isEmpty() && data.recent.isEmpty()) {
-                            item {
-                                Box(Modifier.fillParentMaxSize()) { EmptyView("No events yet. Check back soon.") }
-                            }
+                    if (data.upcoming.isEmpty() && data.recent.isEmpty()) {
+                        item {
+                            Box(Modifier.fillParentMaxSize()) { EmptyView("No events yet. Check back soon.") }
+                        }
+                    } else {
+                        if (data.upcoming.isNotEmpty()) {
+                            item { SectionHeader("Upcoming") }
+                            items(data.upcoming, key = { it.id }) { EventCard(it, onEventClick) }
                         } else {
-                            if (data.upcoming.isNotEmpty()) {
-                                item { SectionHeader("Upcoming") }
-                                items(data.upcoming, key = { it.id }) { EventCard(it, onEventClick) }
-                            } else {
-                                item {
-                                    Text(
-                                        "No upcoming events right now.",
-                                        style = MaterialTheme.typography.bodyLarge,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
+                            item {
+                                Text(
+                                    "No upcoming events right now.",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
-                            if (data.recent.isNotEmpty()) {
-                                item { SectionHeader("Recent") }
-                                items(data.recent, key = { it.id }) { EventCard(it, onEventClick) }
-                            }
+                        }
+                        if (data.recent.isNotEmpty()) {
+                            item { SectionHeader("Recent") }
+                            items(data.recent, key = { it.id }) { EventCard(it, onEventClick) }
                         }
                     }
                 }

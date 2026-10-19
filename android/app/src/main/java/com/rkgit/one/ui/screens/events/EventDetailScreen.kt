@@ -24,7 +24,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.rkgit.one.domain.model.Event
@@ -47,7 +47,7 @@ fun EventDetailScreen(
         Column(Modifier.padding(padding).fillMaxSize()) {
             when (val s = state) {
                 UiState.Loading -> LoadingView()
-                is UiState.Error -> ErrorView(s.message, onRetry = viewModel::load)
+                is UiState.Error -> ErrorView(s.message, onRetry = viewModel::load, offline = s.offline)
                 is UiState.Success -> EventContent(s.data)
             }
         }

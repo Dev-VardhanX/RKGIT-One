@@ -49,7 +49,7 @@ fun NoticeDetailScreen(
         Column(Modifier.padding(padding).fillMaxSize()) {
             when (val s = state) {
                 UiState.Loading -> LoadingView()
-                is UiState.Error -> ErrorView(s.message, onRetry = viewModel::load)
+                is UiState.Error -> ErrorView(s.message, onRetry = viewModel::load, offline = s.offline)
                 is UiState.Success -> NoticeDetailContent(s.data, downloaded, onOpenAttachment)
             }
         }

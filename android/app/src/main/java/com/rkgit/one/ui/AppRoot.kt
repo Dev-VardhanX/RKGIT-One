@@ -12,6 +12,7 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -24,6 +25,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.rkgit.one.ui.components.LocalOpenDownloads
 import com.rkgit.one.ui.navigation.DownloadsRoute
 import com.rkgit.one.ui.navigation.EventDetailRoute
 import com.rkgit.one.ui.navigation.EventsRoute
@@ -97,11 +99,18 @@ fun AppRoot() {
             }
         }
     ) { padding ->
-        NavHost(
-            navController = navController,
-            startDestination = HomeRoute,
-            modifier = Modifier.padding(padding)
+        CompositionLocalProvider(
+            LocalOpenDownloads provides {
+                navController.navigate(DownloadsRoute) {
+                    launchSingleTop = true
+                }
+            }
         ) {
+            NavHost(
+                navController = navController,
+                startDestination = HomeRoute,
+                modifier = Modifier.padding(padding)
+            ) {
             composable<HomeRoute> {
                 HomeScreen(
                     onNoticeClick = { navController.navigate(NoticeDetailRoute(it)) },
@@ -177,6 +186,8 @@ fun AppRoot() {
         }
     }
 }
+}
+
 
 private fun NavController.navigateToTab(route: Any) {
     navigate(route) {

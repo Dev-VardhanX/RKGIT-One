@@ -21,7 +21,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.rkgit.one.domain.model.Subject
 import com.rkgit.one.ui.components.EmptyView
@@ -43,7 +43,8 @@ fun SubjectsScreen(
                 state = state,
                 refreshing = refreshing,
                 onRefresh = viewModel::refresh,
-                onRetry = viewModel::load
+                onRetry = viewModel::load,
+                refreshErrors = viewModel.refreshErrors
             ) { subjects ->
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),

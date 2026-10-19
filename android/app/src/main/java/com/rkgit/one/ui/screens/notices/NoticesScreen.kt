@@ -55,7 +55,8 @@ fun NoticesScreen(
                 state = state,
                 refreshing = refreshing,
                 onRefresh = viewModel::refresh,
-                onRetry = viewModel::load
+                onRetry = viewModel::load,
+                refreshErrors = viewModel.refreshErrors
             ) { notices ->
                 Column(Modifier.fillMaxSize()) {
                     LazyRow(
