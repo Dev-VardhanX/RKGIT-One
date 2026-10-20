@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 
 import { getPosterUrl } from "@/lib/events";
+import { materialTypeLabel } from "@/lib/materials";
 
 import { useAuth } from "@/auth/AuthProvider";
 import { useMaterials } from "@/hooks/useMaterials";
@@ -372,6 +373,9 @@ export default function DashboardPage() {
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium group-hover:text-primary">
                           {material.title}
+                          <span className="ml-2 text-xs font-normal text-muted-foreground">
+                            {materialTypeLabel(material.material_type)}
+                          </span>
                         </p>
                         <p className="mt-1 truncate text-xs text-muted-foreground">
                           {material.subjects.name}

@@ -1,5 +1,29 @@
 import { supabase } from "@/lib/supabase"
 
+export const MATERIAL_TYPES = [
+  { value: "notes", label: "Notes" },
+  { value: "syllabus", label: "Syllabus" },
+  { value: "st_exam", label: "ST Exam" },
+  { value: "put_exam", label: "PUT Exam" },
+  { value: "external_exam", label: "External Exam" },
+  { value: "lab_manual", label: "Lab Manual" },
+] as const
+
+export type MaterialType = (typeof MATERIAL_TYPES)[number]["value"]
+export const DEFAULT_MATERIAL_TYPE: MaterialType = "notes"
+
+export function materialTypeLabel(value: string): string {
+  const match = MATERIAL_TYPES.find((t) => t.value === value)
+  return match ? match.label : value
+}
+
+export function isMaterialType(value: unknown): value is MaterialType {
+  return (
+    typeof value === "string" &&
+    MATERIAL_TYPES.some((t) => t.value === value)
+  )
+}
+
 export type Subject = {
   id: string
   year: number
@@ -16,6 +40,7 @@ export type Material = {
   file_name: string
   file_type: string
   file_size: number
+  material_type: MaterialType
   created_at: string
   updated_at: string
   subjects: Subject
@@ -24,6 +49,7 @@ export type Material = {
 export type MaterialInput = {
   title: string
   description: string
+  materialType: MaterialType
   year: number
   semester: number
   subjectName: string
@@ -218,6 +244,7 @@ export async function createMaterial(input: MaterialInput, file: File) {
     subject_id: subjectId,
     title: input.title.trim(),
     description: input.description.trim() || null,
+    material_type: input.materialType,
     file_path: path,
     file_name: file.name,
     file_type: contentType,
@@ -247,6 +274,7 @@ export async function updateMaterial(
     subject_id: subjectId,
     title: input.title.trim(),
     description: input.description.trim() || null,
+    material_type: input.materialType,
   }
 
   let newPath: string | null = null

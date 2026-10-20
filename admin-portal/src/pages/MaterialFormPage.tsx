@@ -13,11 +13,15 @@ import {
 } from "@/hooks/useMaterials"
 
 import {
+  DEFAULT_MATERIAL_TYPE,
+  MATERIAL_TYPES,
   errorMessage,
+  isMaterialType,
   publicFileUrl,
   semestersForYear,
   validateFile,
   type Material,
+  type MaterialInput,
 } from "@/lib/materials"
 
 import { Button } from "@/components/ui/button"
@@ -55,6 +59,18 @@ const schema = z
       .trim()
       .min(1, "Subject is required")
       .max(100, "Keep the subject under 100 characters"),
+
+    materialType: z.enum(
+      [
+        "notes",
+        "syllabus",
+        "st_exam",
+        "put_exam",
+        "external_exam",
+        "lab_manual",
+      ],
+      { message: "Choose a type" },
+    ),
   })
   .refine(
     (v) =>
@@ -99,6 +115,7 @@ function MaterialForm({
     defaultValues: {
       title: initial?.title ?? "",
       description: initial?.description ?? "",
+      materialType: initial?.material_type ?? DEFAULT_MATERIAL_TYPE,
       year: initial
         ? String(initial.subjects.year)
         : "",
@@ -135,9 +152,10 @@ function MaterialForm({
       }
     }
 
-    const input = {
+    const input: MaterialInput = {
       title: v.title,
       description: v.description,
+      materialType: v.materialType,
       year: Number(v.year),
       semester: Number(v.semester),
       subjectName: v.subjectName,
@@ -308,6 +326,49 @@ function MaterialForm({
           {errors.subjectName && (
             <p className="text-sm text-destructive">
               {errors.subjectName.message}
+            </p>
+          )}
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="materialType">Type</Label>
+
+          <Controller
+            control={control}
+            name="materialType"
+            render={({ field }) => (
+              <Select
+                value={field.value}
+                onValueChange={(v) => {
+                  if (typeof v === "string" && isMaterialType(v)) {
+                    field.onChange(v)
+                  }
+                }}
+              >
+                <SelectTrigger
+                  id="materialType"
+                  className="w-full"
+                >
+                  <SelectValue placeholder="Select type" />
+                </SelectTrigger>
+
+                <SelectContent>
+                  {MATERIAL_TYPES.map((t) => (
+                    <SelectItem
+                      key={t.value}
+                      value={t.value}
+                    >
+                      {t.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          />
+
+          {errors.materialType && (
+            <p className="text-sm text-destructive">
+              {errors.materialType.message}
             </p>
           )}
         </div>

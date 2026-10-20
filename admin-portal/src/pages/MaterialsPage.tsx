@@ -5,9 +5,11 @@ import { toast } from "sonner"
 
 import { useDeleteMaterial, useMaterials } from "@/hooks/useMaterials"
 import {
+  MATERIAL_TYPES,
   errorMessage,
   formatBytes,
   formatDate,
+  materialTypeLabel,
   publicFileUrl,
   semestersForYear,
   type Material,
@@ -57,6 +59,7 @@ export default function MaterialsPage() {
   const [year, setYear] = useState("all")
   const [semester, setSemester] = useState("all")
   const [subject, setSubject] = useState("all")
+  const [type, setType] = useState("all")
   const [toDelete, setToDelete] = useState<Material | null>(null)
 
   const matchesYearSem = (m: Material) =>
@@ -74,7 +77,7 @@ export default function MaterialsPage() {
         ),
       ].sort(),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [materials, year, semester],
+  [materials, year, semester],
   )
 
   const filtered = useMemo(() => {
@@ -84,13 +87,14 @@ export default function MaterialsPage() {
       (m) =>
         matchesYearSem(m) &&
         (subject === "all" || m.subjects.name === subject) &&
+        (type === "all" || m.material_type === type) &&
         (!t ||
           [m.title, m.file_name, m.subjects.name].some((s) =>
             s.toLowerCase().includes(t),
           )),
     )
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [materials, q, year, semester, subject])
+  }, [materials, q, year, semester, subject, type])
 
   const semesterChoices =
     year === "all"
@@ -193,6 +197,29 @@ export default function MaterialsPage() {
             ))}
           </SelectContent>
         </Select>
+
+        <Select
+          value={type}
+          onValueChange={(v) => {
+            if (typeof v === "string") {
+              setType(v)
+            }
+          }}
+        >
+          <SelectTrigger className="w-40">
+            <SelectValue />
+          </SelectTrigger>
+
+          <SelectContent>
+            <SelectItem value="all">All types</SelectItem>
+
+            {MATERIAL_TYPES.map((t) => (
+              <SelectItem key={t.value} value={t.value}>
+                {t.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="rounded-lg border bg-background">
@@ -231,9 +258,10 @@ export default function MaterialsPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Title</TableHead>
-                  <TableHead>Year / Sem</TableHead>
+                  <TableHead className="whitespace-nowrap">Year / Sem</TableHead>
                   <TableHead>Subject</TableHead>
                   <TableHead>Type</TableHead>
+                  <TableHead>Format</TableHead>
                   <TableHead>Size</TableHead>
                   <TableHead>Added</TableHead>
                   <TableHead className="text-right">
@@ -255,12 +283,18 @@ export default function MaterialsPage() {
                       </div>
                     </TableCell>
 
-                    <TableCell>
+                    <TableCell className="whitespace-nowrap">
                       Y{m.subjects.year} / S{m.subjects.semester}
                     </TableCell>
 
                     <TableCell>
                       {m.subjects.name}
+                    </TableCell>
+
+                    <TableCell className="whitespace-nowrap">
+                      <Badge variant="outline">
+                        {materialTypeLabel(m.material_type)}
+                      </Badge>
                     </TableCell>
 
                     <TableCell>
@@ -272,11 +306,11 @@ export default function MaterialsPage() {
                       </Badge>
                     </TableCell>
 
-                    <TableCell>
+                    <TableCell className="whitespace-nowrap">
                       {formatBytes(m.file_size)}
                     </TableCell>
 
-                    <TableCell>
+                    <TableCell className="whitespace-nowrap">
                       {formatDate(m.created_at)}
                     </TableCell>
 
