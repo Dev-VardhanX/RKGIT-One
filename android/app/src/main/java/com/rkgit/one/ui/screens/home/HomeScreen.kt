@@ -12,6 +12,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Download
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.Card
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -44,6 +45,7 @@ fun HomeScreen(
     onSeeAllNotes: () -> Unit,
     onSeeAllEvents: () -> Unit,
     onDownloadsClick: () -> Unit,
+    onSearchClick: () -> Unit,
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -52,6 +54,9 @@ fun HomeScreen(
     ScreenScaffold(
         title = "RKGIT ONE",
         actions = {
+            IconButton(onClick = onSearchClick) {
+                Icon(Icons.Outlined.Search, contentDescription = "Search")
+            }
             IconButton(onClick = onDownloadsClick) {
                 Icon(Icons.Outlined.Download, contentDescription = "Downloads")
             }

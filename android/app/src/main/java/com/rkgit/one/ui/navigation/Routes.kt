@@ -16,6 +16,7 @@ import kotlinx.serialization.Serializable
 )
 @Serializable data class NoticeDetailRoute(val id: String)
 @Serializable data object DownloadsRoute
+@Serializable data object SearchRoute
 @Serializable data class ViewerRoute(
     val kind: String,
     val itemId: String,

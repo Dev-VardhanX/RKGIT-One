@@ -34,6 +34,7 @@ import com.rkgit.one.ui.navigation.MaterialListRoute
 import com.rkgit.one.ui.navigation.NoticeDetailRoute
 import com.rkgit.one.ui.navigation.NoticesRoute
 import com.rkgit.one.ui.navigation.NotesRoute
+import com.rkgit.one.ui.navigation.SearchRoute
 import com.rkgit.one.ui.navigation.SubjectsRoute
 import com.rkgit.one.ui.navigation.ViewerRoute
 import com.rkgit.one.ui.navigation.toViewerRoute
@@ -46,6 +47,7 @@ import com.rkgit.one.ui.screens.materials.NotesScreen
 import com.rkgit.one.ui.screens.materials.SubjectsScreen
 import com.rkgit.one.ui.screens.notices.NoticeDetailScreen
 import com.rkgit.one.ui.screens.notices.NoticesScreen
+import com.rkgit.one.ui.screens.search.SearchScreen
 import com.rkgit.one.ui.screens.viewer.ViewerScreen
 import kotlin.reflect.KClass
 
@@ -73,7 +75,7 @@ fun AppRoot() {
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
-            if (destination?.hasRoute(ViewerRoute::class) != true) {
+            if (destination?.hasRoute(ViewerRoute::class) != true && destination?.hasRoute(SearchRoute::class) != true) {
                 NavigationBar {
                     topLevelItems.forEach { item ->
                         val selected = destination?.hierarchy?.any { d ->
@@ -117,9 +119,23 @@ fun AppRoot() {
                     onEventClick = { navController.navigate(EventDetailRoute(it)) },
                     onMaterialClick = { id, name, y, s -> navController.navigate(MaterialListRoute(id, name, y, s)) },
                     onDownloadsClick = { navController.navigate(DownloadsRoute) },
+                    onSearchClick = {
+                        navController.navigate(SearchRoute) {
+                            launchSingleTop = true
+                        }
+                    },
                     onSeeAllNotices = { navController.navigateToTab(NoticesRoute) },
                     onSeeAllNotes = { navController.navigateToTab(NotesRoute) },
                     onSeeAllEvents = { navController.navigateToTab(EventsRoute) }
+                )
+            }
+            composable<SearchRoute> {
+                SearchScreen(
+                    onBack = { navController.popBackStack() },
+                    onMaterialClick = { navController.navigate(it.toViewerRoute()) },
+                    onEventClick = { navController.navigate(EventDetailRoute(it)) },
+                    onNoticeClick = { navController.navigate(NoticeDetailRoute(it)) },
+                    onDownloadedClick = { navController.navigate(it.toViewerRoute()) }
                 )
             }
             composable<NotesRoute> {
