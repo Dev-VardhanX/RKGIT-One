@@ -1,5 +1,6 @@
 package com.rkgit.one.data.remote.dto
 
+import com.rkgit.one.domain.model.MaterialType
 import com.rkgit.one.domain.model.NoticeCategory
 import com.rkgit.one.domain.model.SearchEvent
 import com.rkgit.one.domain.model.SearchMaterial
@@ -33,7 +34,8 @@ private data class MaterialExtraDto(
     @SerialName("file_path") val filePath: String = "",
     @SerialName("file_name") val fileName: String = "",
     @SerialName("file_type") val fileType: String = "",
-    @SerialName("file_size") val fileSize: Long = 0L
+    @SerialName("file_size") val fileSize: Long = 0L,
+    @SerialName("material_type") val materialType: String? = "notes"
 )
 
 @Serializable
@@ -72,7 +74,8 @@ fun List<SearchRowDto>.toSearchResults(json: Json): SearchResults {
                             filePath = extra.filePath,
                             fileName = extra.fileName,
                             fileType = extra.fileType,
-                            fileSize = extra.fileSize
+                            fileSize = extra.fileSize,
+                            type = MaterialType.fromValue(extra.materialType)
                         )
                     )
                 }

@@ -156,6 +156,11 @@ private fun RecentMaterialCard(
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Text(
+                text = recent.material.type.label,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Text(
                 text = recent.material.title,
                 style = MaterialTheme.typography.titleMedium,
                 maxLines = 2,

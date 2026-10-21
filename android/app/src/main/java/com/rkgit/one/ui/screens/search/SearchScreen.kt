@@ -318,6 +318,11 @@ private fun MaterialCard(material: SearchMaterial, onClick: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Text(
+                text = material.type.label,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Text(
                 text = material.title,
                 style = MaterialTheme.typography.titleMedium,
                 maxLines = 2,

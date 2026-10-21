@@ -11,7 +11,8 @@ data class StudyMaterial(
     val filePath: String,
     val fileType: String,
     val fileSize: Long,
-    val createdAt: Instant
+    val createdAt: Instant,
+    val type: MaterialType = MaterialType.NOTES
 ) {
     val typeLabel: String
         get() = fileName.substringAfterLast('.', "").uppercase()

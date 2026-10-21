@@ -14,7 +14,8 @@ data class SearchMaterial(
     val filePath: String,
     val fileName: String,
     val fileType: String,
-    val fileSize: Long
+    val fileSize: Long,
+    val type: MaterialType = MaterialType.NOTES
 ) {
     val typeLabel: String
         get() {

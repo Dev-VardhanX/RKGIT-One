@@ -1,5 +1,6 @@
 package com.rkgit.one.data.remote.dto
 
+import com.rkgit.one.domain.model.MaterialType
 import com.rkgit.one.domain.model.StudyMaterial
 import com.rkgit.one.domain.model.Subject
 import kotlinx.serialization.SerialName
@@ -36,7 +37,8 @@ data class StudyMaterialDto(
     @SerialName("file_name") val fileName: String,
     @SerialName("file_type") val fileType: String,
     @SerialName("file_size") val fileSize: Long,
-    @SerialName("created_at") val createdAt: String
+    @SerialName("created_at") val createdAt: String,
+    @SerialName("material_type") val materialType: String = "notes"
 )
 
 fun StudyMaterialDto.toDomain() = StudyMaterial(
@@ -48,5 +50,6 @@ fun StudyMaterialDto.toDomain() = StudyMaterial(
     filePath = filePath,
     fileType = fileType,
     fileSize = fileSize,
-    createdAt = OffsetDateTime.parse(createdAt).toInstant()
+    createdAt = OffsetDateTime.parse(createdAt).toInstant(),
+    type = MaterialType.fromValue(materialType)
 )
