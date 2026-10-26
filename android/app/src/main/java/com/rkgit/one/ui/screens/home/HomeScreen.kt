@@ -13,6 +13,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Card
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -46,6 +47,7 @@ fun HomeScreen(
     onSeeAllEvents: () -> Unit,
     onDownloadsClick: () -> Unit,
     onSearchClick: () -> Unit,
+    onSettingsClick: () -> Unit,
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -59,6 +61,9 @@ fun HomeScreen(
             }
             IconButton(onClick = onDownloadsClick) {
                 Icon(Icons.Outlined.Download, contentDescription = "Downloads")
+            }
+            IconButton(onClick = onSettingsClick) {
+                Icon(Icons.Outlined.Settings, contentDescription = "Settings")
             }
         }
     ) { padding ->

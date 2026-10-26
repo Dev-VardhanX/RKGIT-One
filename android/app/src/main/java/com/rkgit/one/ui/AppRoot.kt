@@ -17,6 +17,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavController
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavDestination.Companion.hierarchy
@@ -35,6 +36,8 @@ import com.rkgit.one.ui.navigation.NoticeDetailRoute
 import com.rkgit.one.ui.navigation.NoticesRoute
 import com.rkgit.one.ui.navigation.NotesRoute
 import com.rkgit.one.ui.navigation.SearchRoute
+import com.rkgit.one.ui.navigation.SettingsRoute
+import com.rkgit.one.ui.navigation.SetupRoute
 import com.rkgit.one.ui.navigation.SubjectsRoute
 import com.rkgit.one.ui.navigation.ViewerRoute
 import com.rkgit.one.ui.navigation.toViewerRoute
@@ -48,6 +51,8 @@ import com.rkgit.one.ui.screens.materials.SubjectsScreen
 import com.rkgit.one.ui.screens.notices.NoticeDetailScreen
 import com.rkgit.one.ui.screens.notices.NoticesScreen
 import com.rkgit.one.ui.screens.search.SearchScreen
+import com.rkgit.one.ui.screens.settings.SettingsScreen
+import com.rkgit.one.ui.screens.setup.SetupScreen
 import com.rkgit.one.ui.screens.viewer.ViewerScreen
 import kotlin.reflect.KClass
 
@@ -60,14 +65,16 @@ private data class TopLevelItem(
 )
 
 private val topLevelItems = listOf(
-    TopLevelItem("Home", HomeRoute, Icons.Outlined.Home),
+    TopLevelItem("Home", HomeRoute, Icons.Outlined.Home, listOf(SettingsRoute::class)),
     TopLevelItem("Notes", NotesRoute, Icons.Outlined.Description, listOf(SubjectsRoute::class, MaterialListRoute::class, DownloadsRoute::class)),
     TopLevelItem("Events", EventsRoute, Icons.Outlined.Event, listOf(EventDetailRoute::class)),
     TopLevelItem("Notices", NoticesRoute, Icons.Outlined.Notifications, listOf(NoticeDetailRoute::class))
 )
 
 @Composable
-fun AppRoot() {
+fun AppRoot(
+    viewModel: AppViewModel = hiltViewModel()
+) {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val destination = backStackEntry?.destination
@@ -75,7 +82,9 @@ fun AppRoot() {
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
-            if (destination?.hasRoute(ViewerRoute::class) != true && destination?.hasRoute(SearchRoute::class) != true) {
+            if (destination?.hasRoute(ViewerRoute::class) != true &&
+                destination?.hasRoute(SearchRoute::class) != true &&
+                destination?.hasRoute(SetupRoute::class) != true) {
                 NavigationBar {
                     topLevelItems.forEach { item ->
                         val selected = destination?.hierarchy?.any { d ->
@@ -108,11 +117,22 @@ fun AppRoot() {
                 }
             }
         ) {
+            val startDestination = if (viewModel.startsWithSetup) SetupRoute else HomeRoute
             NavHost(
                 navController = navController,
-                startDestination = HomeRoute,
+                startDestination = startDestination,
                 modifier = Modifier.padding(padding)
             ) {
+            composable<SetupRoute> {
+                SetupScreen(
+                    onDone = {
+                        navController.navigate(HomeRoute) {
+                            popUpTo(SetupRoute) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    }
+                )
+            }
             composable<HomeRoute> {
                 HomeScreen(
                     onNoticeClick = { navController.navigate(NoticeDetailRoute(it)) },
@@ -124,10 +144,18 @@ fun AppRoot() {
                             launchSingleTop = true
                         }
                     },
+                    onSettingsClick = {
+                        navController.navigate(SettingsRoute) {
+                            launchSingleTop = true
+                        }
+                    },
                     onSeeAllNotices = { navController.navigateToTab(NoticesRoute) },
                     onSeeAllNotes = { navController.navigateToTab(NotesRoute) },
                     onSeeAllEvents = { navController.navigateToTab(EventsRoute) }
                 )
+            }
+            composable<SettingsRoute> {
+                SettingsScreen(onBack = { navController.popBackStack() })
             }
             composable<SearchRoute> {
                 SearchScreen(
