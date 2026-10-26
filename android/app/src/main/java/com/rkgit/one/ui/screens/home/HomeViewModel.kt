@@ -1,5 +1,8 @@
 package com.rkgit.one.ui.screens.home
 
+import com.rkgit.one.data.profile.ProfileRepository
+import com.rkgit.one.data.profile.StudentProfile
+import com.rkgit.one.data.profile.matchingAudience
 import com.rkgit.one.data.repository.EventsRepository
 import com.rkgit.one.data.repository.MaterialsRepository
 import com.rkgit.one.data.repository.NoticesRepository
@@ -10,6 +13,7 @@ import com.rkgit.one.ui.LoadableViewModel
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.StateFlow
 import javax.inject.Inject
 
 data class HomeData(
@@ -18,17 +22,26 @@ data class HomeData(
     val events: List<Event>
 ) {
     val isEmpty: Boolean get() = notices.isEmpty() && materials.isEmpty() && events.isEmpty()
+
+    fun visibleNotices(filterYear: Int?, filterDepartment: String?): List<Notice> =
+        notices.matchingAudience(filterYear, filterDepartment).take(3)
+
+    fun isEmptyFor(filterYear: Int?, filterDepartment: String?): Boolean =
+        visibleNotices(filterYear, filterDepartment).isEmpty() && materials.isEmpty() && events.isEmpty()
 }
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val noticesRepository: NoticesRepository,
     private val materialsRepository: MaterialsRepository,
-    private val eventsRepository: EventsRepository
+    private val eventsRepository: EventsRepository,
+    private val profileRepository: ProfileRepository
 ) : LoadableViewModel<HomeData>() {
 
+    val profile: StateFlow<StudentProfile> = profileRepository.profile
+
     override suspend fun fetch(): HomeData = coroutineScope {
-        val noticesDeferred = async { noticesRepository.active().take(3) }
+        val noticesDeferred = async { noticesRepository.active() }
         val materialsDeferred = async { materialsRepository.recent(5) }
         val eventsDeferred = async { eventsRepository.upcoming().take(3) }
 
@@ -43,3 +56,4 @@ class HomeViewModel @Inject constructor(
         load()
     }
 }
+

@@ -26,6 +26,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.rkgit.one.data.profile.audienceText
 import com.rkgit.one.domain.model.Notice
 import com.rkgit.one.ui.UiState
 import com.rkgit.one.ui.components.ErrorView
@@ -100,6 +101,15 @@ private fun NoticeDetailContent(
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
+
+        val audText = audienceText(notice.targetYears, notice.targetDepartments)
+        if (audText != null) {
+            Text(
+                text = "For $audText",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
 
         notice.expiresAt?.let { expiresAt ->
             Text(

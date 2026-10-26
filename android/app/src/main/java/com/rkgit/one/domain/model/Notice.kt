@@ -34,7 +34,9 @@ data class Notice(
     val linkUrl: String?,
     val attachment: NoticeAttachment?,
     val publishedAt: Instant,
-    val expiresAt: Instant?
+    val expiresAt: Instant?,
+    val targetYears: List<Int> = emptyList(),
+    val targetDepartments: List<String> = emptyList()
 )
 
 fun List<Notice>.activeAt(now: Instant): List<Notice> = filter { it.expiresAt == null || it.expiresAt.isAfter(now) }

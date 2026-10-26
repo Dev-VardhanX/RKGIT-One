@@ -52,6 +52,7 @@ fun HomeScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val refreshing by viewModel.refreshing.collectAsStateWithLifecycle()
+    val profile by viewModel.profile.collectAsStateWithLifecycle()
 
     ScreenScaffold(
         title = "RKGIT ONE",
@@ -75,23 +76,25 @@ fun HomeScreen(
                 onRetry = viewModel::load,
                 refreshErrors = viewModel.refreshErrors
             ) { data ->
+                val visibleNotices = data.visibleNotices(profile.year, profile.departmentCode)
+                val empty = data.isEmptyFor(profile.year, profile.departmentCode)
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    if (data.isEmpty) {
+                    if (empty) {
                         item(key = "empty_state") {
                             Box(Modifier.fillParentMaxSize()) {
                                 EmptyView("Nothing here yet. Check back soon.")
                             }
                         }
                     } else {
-                        if (data.notices.isNotEmpty()) {
+                        if (visibleNotices.isNotEmpty()) {
                             item(key = "header_notices") {
                                 SectionHeader(title = "Latest notices", onSeeAll = onSeeAllNotices)
                             }
-                            items(data.notices, key = { "notice_${it.id}" }) { notice ->
+                            items(visibleNotices, key = { "notice_${it.id}" }) { notice ->
                                 NoticeCard(notice = notice, onClick = { onNoticeClick(notice.id) })
                             }
                         }
