@@ -5,6 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { toast } from "sonner"
 import { useCreateNotice, useNotice, useUpdateNotice } from "@/hooks/useNotices"
+import { useDepartments } from "@/hooks/useDepartments"
 import {
   CATEGORIES, publicNoticeFileUrl, validateNoticeFile,
   type AttachmentChange, type Notice,
@@ -22,6 +23,8 @@ const schema = z.object({
   title: z.string().trim().min(1, "Title is required").max(150, "Keep the title under 150 characters"),
   body: z.string().trim().max(5000, "Keep the message under 5000 characters"),
   category: z.enum(["general", "academic", "exam", "datesheet", "holiday"]),
+  targetYears: z.array(z.number().int().min(1).max(4)),
+  targetDepartments: z.array(z.string()),
   pinned: z.boolean(),
   linkUrl: z
     .string()
@@ -43,6 +46,12 @@ function NoticeForm({ initial }: { initial?: Notice }) {
   const navigate = useNavigate()
   const create = useCreateNotice()
   const update = useUpdateNotice()
+  const {
+    data: departments,
+    isLoading: isDepartmentsLoading,
+    error: departmentsError,
+    refetch: refetchDepartments,
+  } = useDepartments()
   const [file, setFile] = useState<File | null>(null)
   const [fileError, setFileError] = useState<string | null>(null)
   const [removeExisting, setRemoveExisting] = useState(false)
@@ -54,6 +63,8 @@ function NoticeForm({ initial }: { initial?: Notice }) {
       title: initial?.title ?? "",
       body: initial?.body ?? "",
       category: initial?.category ?? "general",
+      targetYears: initial?.target_years ?? [],
+      targetDepartments: initial?.target_departments ?? [],
       pinned: initial?.pinned ?? false,
       linkUrl: initial?.link_url ?? "",
       expiresOn: toDateInput(initial?.expires_at ?? null),
@@ -86,6 +97,8 @@ function NoticeForm({ initial }: { initial?: Notice }) {
       title: v.title,
       body: v.body,
       category: v.category,
+      targetYears: v.targetYears,
+      targetDepartments: v.targetDepartments,
       pinned: v.pinned,
       linkUrl: v.linkUrl,
       expiresAt,
@@ -137,6 +150,140 @@ function NoticeForm({ initial }: { initial?: Notice }) {
               </Select>
             )}
           />
+        </div>
+
+        <div className="space-y-4">
+          <div>
+            <Label>Audience</Label>
+            <p className="text-xs text-muted-foreground">Leave everything unselected to send the notice to everyone.</p>
+          </div>
+
+          <div className="space-y-2">
+            <span className="text-xs font-medium text-muted-foreground">Year</span>
+            <Controller
+              control={control}
+              name="targetYears"
+              render={({ field }) => {
+                const selected = field.value ?? []
+                const toggleYear = (yr: number) => {
+                  const next = selected.includes(yr)
+                    ? selected.filter((y) => y !== yr)
+                    : [...selected, yr]
+                  field.onChange(next)
+                }
+
+                return (
+                  <div className="flex flex-wrap gap-2">
+                    {[1, 2, 3, 4].map((year) => {
+                      const isSelected = selected.includes(year)
+                      return (
+                        <Button
+                          key={year}
+                          type="button"
+                          variant={isSelected ? "default" : "outline"}
+                          size="sm"
+                          aria-pressed={isSelected}
+                          onClick={() => toggleYear(year)}
+                        >
+                          Year {year}
+                        </Button>
+                      )
+                    })}
+                  </div>
+                )
+              }}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <span className="text-xs font-medium text-muted-foreground">Department</span>
+            {departmentsError ? (
+              <div className="flex items-center gap-2 text-sm text-destructive">
+                <span>Couldn't load departments</span>
+                <Button
+                  type="button"
+                  variant="link"
+                  size="sm"
+                  className="h-auto p-0 text-destructive underline"
+                  onClick={() => void refetchDepartments()}
+                >
+                  Retry
+                </Button>
+              </div>
+            ) : isDepartmentsLoading ? (
+              <p className="text-sm text-muted-foreground">Loading departments...</p>
+            ) : (
+              <Controller
+                control={control}
+                name="targetDepartments"
+                render={({ field }) => {
+                  const selected = field.value ?? []
+                  const activeDepts = (departments ?? []).filter((d) => d.active)
+                  const inactiveSelected = selected.filter(
+                    (code) =>
+                      !activeDepts.some(
+                        (d) => d.code.toLowerCase() === code.toLowerCase(),
+                      ),
+                  )
+
+                  const toggleDept = (code: string) => {
+                    const next = selected.some(
+                      (c) => c.toLowerCase() === code.toLowerCase(),
+                    )
+                      ? selected.filter(
+                          (c) => c.toLowerCase() !== code.toLowerCase(),
+                        )
+                      : [...selected, code]
+                    field.onChange(next)
+                  }
+
+                  return (
+                    <div className="flex flex-wrap gap-2">
+                      {activeDepts.map((dept) => {
+                        const isSelected = selected.some(
+                          (c) => c.toLowerCase() === dept.code.toLowerCase(),
+                        )
+                        return (
+                          <Button
+                            key={dept.id}
+                            type="button"
+                            variant={isSelected ? "default" : "outline"}
+                            size="sm"
+                            title={dept.name}
+                            aria-pressed={isSelected}
+                            onClick={() => toggleDept(dept.code)}
+                          >
+                            {dept.code.toUpperCase()}
+                          </Button>
+                        )
+                      })}
+                      {inactiveSelected.map((code) => {
+                        const knownDept = departments?.find(
+                          (d) => d.code.toLowerCase() === code.toLowerCase(),
+                        )
+                        const titleText = knownDept
+                          ? `${knownDept.name} (inactive)`
+                          : `${code.toUpperCase()} (inactive)`
+                        return (
+                          <Button
+                            key={code}
+                            type="button"
+                            variant="default"
+                            size="sm"
+                            title={titleText}
+                            aria-pressed={true}
+                            onClick={() => toggleDept(code)}
+                          >
+                            {code.toUpperCase()} (inactive)
+                          </Button>
+                        )
+                      })}
+                    </div>
+                  )
+                }}
+              />
+            )}
+          </div>
         </div>
 
         <div className="space-y-2">

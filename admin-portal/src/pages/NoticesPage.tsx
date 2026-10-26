@@ -3,7 +3,8 @@ import { Link } from "react-router-dom"
 import { ExternalLink, Pencil, Pin, Plus, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { useDeleteNotice, useNotices } from "@/hooks/useNotices"
-import { CATEGORIES, categoryLabel, isExpired, publicNoticeFileUrl, type Notice } from "@/lib/notices"
+import { useDepartments } from "@/hooks/useDepartments"
+import { CATEGORIES, categoryLabel, audienceLabel, isExpired, publicNoticeFileUrl, type Notice } from "@/lib/notices"
 import { errorMessage, formatBytes, formatDate } from "@/lib/materials"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -18,6 +19,7 @@ import {
 
 export default function NoticesPage() {
   const { data: notices, isLoading, error, refetch } = useNotices()
+  const { data: departments } = useDepartments()
   const del = useDeleteNotice()
   const [q, setQ] = useState("")
   const [category, setCategory] = useState("all")
@@ -86,6 +88,7 @@ export default function NoticesPage() {
               <TableRow>
                 <TableHead>Title</TableHead>
                 <TableHead>Category</TableHead>
+                <TableHead>Audience</TableHead>
                 <TableHead>Attachment</TableHead>
                 <TableHead>Published</TableHead>
                 <TableHead>Expires</TableHead>
@@ -103,6 +106,11 @@ export default function NoticesPage() {
                     {n.body && <div className="truncate text-xs text-muted-foreground">{n.body}</div>}
                   </TableCell>
                   <TableCell><Badge variant="secondary">{categoryLabel(n.category)}</Badge></TableCell>
+                  <TableCell className="whitespace-nowrap">
+                    <Badge variant="outline">
+                      {audienceLabel(n.target_years, n.target_departments, departments ?? [])}
+                    </Badge>
+                  </TableCell>
                   <TableCell>
                     {n.file_name ? (
                       <div className="flex items-center gap-2">

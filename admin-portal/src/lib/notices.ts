@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase"
+import type { Department } from "@/lib/departments"
 
 export type NoticeCategory = "general" | "academic" | "exam" | "datesheet" | "holiday"
 
@@ -11,6 +12,46 @@ export const CATEGORIES: { value: NoticeCategory; label: string }[] = [
 ]
 export const categoryLabel = (c: string) => CATEGORIES.find((x) => x.value === c)?.label ?? c
 
+export function audienceLabel(
+  years: number[] | null,
+  departmentCodes: string[] | null,
+  departments: Department[] = [],
+): string {
+  const hasYears = Boolean(years && years.length > 0)
+  const hasDepts = Boolean(departmentCodes && departmentCodes.length > 0)
+
+  if (!hasYears && !hasDepts) {
+    return "Everyone"
+  }
+
+  let yearsPart: string
+  if (hasYears && years) {
+    const sortedYears = Array.from(new Set(years)).sort((a, b) => a - b)
+    yearsPart = sortedYears.length === 1 ? `Year ${sortedYears[0]}` : `Year ${sortedYears.join(", ")}`
+  } else {
+    yearsPart = "All years"
+  }
+
+  let deptsPart: string
+  if (hasDepts && departmentCodes) {
+    const uniqueCodes = Array.from(new Set(departmentCodes))
+    if (departments && departments.length > 0) {
+      const deptMap = new Map(departments.map((d) => [d.code.toLowerCase(), d.sort_order]))
+      uniqueCodes.sort((a, b) => {
+        const orderA = deptMap.get(a.toLowerCase()) ?? 9999
+        const orderB = deptMap.get(b.toLowerCase()) ?? 9999
+        if (orderA !== orderB) return orderA - orderB
+        return a.localeCompare(b)
+      })
+    }
+    deptsPart = uniqueCodes.map((c) => c.toUpperCase()).join(", ")
+  } else {
+    deptsPart = "All departments"
+  }
+
+  return `${yearsPart} · ${deptsPart}`
+}
+
 export type Notice = {
   id: string
   title: string
@@ -22,6 +63,8 @@ export type Notice = {
   file_name: string | null
   file_type: string | null
   file_size: number | null
+  target_years: number[] | null
+  target_departments: string[] | null
   published_at: string
   expires_at: string | null
   created_at: string
@@ -35,6 +78,8 @@ export type NoticeInput = {
   pinned: boolean
   linkUrl: string
   expiresAt: string | null // ISO string or null
+  targetYears: number[]
+  targetDepartments: string[]
 }
 
 export type AttachmentChange =
@@ -129,6 +174,15 @@ async function cleanupOldFile(path: string | null) {
 export async function createNotice(input: NoticeInput, file?: File) {
   const up = file ? await uploadNoticeFile(file) : null
 
+  const targetYears =
+    input.targetYears.length > 0
+      ? Array.from(new Set(input.targetYears)).sort((a, b) => a - b)
+      : null
+  const targetDepartments =
+    input.targetDepartments.length > 0
+      ? Array.from(new Set(input.targetDepartments))
+      : null
+
   const { error } = await supabase.from("notices").insert({
     title: input.title.trim(),
     body: input.body.trim() || null,
@@ -136,6 +190,8 @@ export async function createNotice(input: NoticeInput, file?: File) {
     pinned: input.pinned,
     link_url: input.linkUrl.trim() || null,
     expires_at: input.expiresAt,
+    target_years: targetYears,
+    target_departments: targetDepartments,
     ...(up && file
       ? { file_path: up.path, file_name: file.name, file_type: up.contentType, file_size: file.size }
       : {}),
@@ -147,6 +203,15 @@ export async function createNotice(input: NoticeInput, file?: File) {
 }
 
 export async function updateNotice(existing: Notice, input: NoticeInput, change: AttachmentChange) {
+  const targetYears =
+    input.targetYears.length > 0
+      ? Array.from(new Set(input.targetYears)).sort((a, b) => a - b)
+      : null
+  const targetDepartments =
+    input.targetDepartments.length > 0
+      ? Array.from(new Set(input.targetDepartments))
+      : null
+
   const patch: Record<string, unknown> = {
     title: input.title.trim(),
     body: input.body.trim() || null,
@@ -154,6 +219,8 @@ export async function updateNotice(existing: Notice, input: NoticeInput, change:
     pinned: input.pinned,
     link_url: input.linkUrl.trim() || null,
     expires_at: input.expiresAt,
+    target_years: targetYears,
+    target_departments: targetDepartments,
   }
 
   let uploadedPath: string | null = null
