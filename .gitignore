@@ -22,3 +22,8 @@ android/**/local.properties
 
 supabase/.temp/
 supabase/.branches/
+
+# firebase
+google-services.json
+*service-account*.json
+rkgit-fcm-*.json
