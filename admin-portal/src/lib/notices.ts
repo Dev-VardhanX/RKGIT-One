@@ -67,6 +67,7 @@ export type Notice = {
   target_departments: string[] | null
   published_at: string
   expires_at: string | null
+  notified_at: string | null
   created_at: string
   updated_at: string
 }
@@ -171,7 +172,7 @@ async function cleanupOldFile(path: string | null) {
 }
 
 // ---------- writes ----------
-export async function createNotice(input: NoticeInput, file?: File) {
+export async function createNotice(input: NoticeInput, file?: File): Promise<{ id: string }> {
   const up = file ? await uploadNoticeFile(file) : null
 
   const targetYears =
@@ -183,23 +184,30 @@ export async function createNotice(input: NoticeInput, file?: File) {
       ? Array.from(new Set(input.targetDepartments))
       : null
 
-  const { error } = await supabase.from("notices").insert({
-    title: input.title.trim(),
-    body: input.body.trim() || null,
-    category: input.category,
-    pinned: input.pinned,
-    link_url: input.linkUrl.trim() || null,
-    expires_at: input.expiresAt,
-    target_years: targetYears,
-    target_departments: targetDepartments,
-    ...(up && file
-      ? { file_path: up.path, file_name: file.name, file_type: up.contentType, file_size: file.size }
-      : {}),
-  })
-  if (error) {
+  const { data, error } = await supabase
+    .from("notices")
+    .insert({
+      title: input.title.trim(),
+      body: input.body.trim() || null,
+      category: input.category,
+      pinned: input.pinned,
+      link_url: input.linkUrl.trim() || null,
+      expires_at: input.expiresAt,
+      target_years: targetYears,
+      target_departments: targetDepartments,
+      ...(up && file
+        ? { file_path: up.path, file_name: file.name, file_type: up.contentType, file_size: file.size }
+        : {}),
+    })
+    .select("id")
+    .single()
+
+  if (error || !data) {
     if (up) await removeNoticeFile(up.path) // no orphaned file if the row fails
-    throw error
+    throw error ?? new Error("Notice was not created.")
   }
+
+  return { id: data.id as string }
 }
 
 export async function updateNotice(existing: Notice, input: NoticeInput, change: AttachmentChange) {

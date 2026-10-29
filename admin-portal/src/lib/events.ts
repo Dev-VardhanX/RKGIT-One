@@ -17,6 +17,7 @@ export type EventRecord = {
   venue: string | null;
   poster_path: string | null;
   registration_url: string | null;
+  notified_at: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -162,7 +163,7 @@ export async function getEvent(id: string): Promise<EventRecord> {
   return data as EventRecord;
 }
 
-export async function createEvent(input: EventInput): Promise<void> {
+export async function createEvent(input: EventInput): Promise<{ id: string }> {
   const validationError = validateEventInput(input);
 
   if (validationError) {
@@ -176,18 +177,24 @@ export async function createEvent(input: EventInput): Promise<void> {
       uploadedPosterPath = await uploadPoster(input.poster);
     }
 
-    const { error } = await supabase.from("events").insert({
-      title: input.title.trim(),
-      description: cleanOptionalValue(input.description),
-      event_date: new Date(input.event_date).toISOString(),
-      venue: cleanOptionalValue(input.venue),
-      poster_path: uploadedPosterPath,
-      registration_url: cleanOptionalValue(input.registration_url),
-    });
+    const { data, error } = await supabase
+      .from("events")
+      .insert({
+        title: input.title.trim(),
+        description: cleanOptionalValue(input.description),
+        event_date: new Date(input.event_date).toISOString(),
+        venue: cleanOptionalValue(input.venue),
+        poster_path: uploadedPosterPath,
+        registration_url: cleanOptionalValue(input.registration_url),
+      })
+      .select("id")
+      .single();
 
-    if (error) {
-      throw new Error(`Could not create event: ${error.message}`);
+    if (error || !data) {
+      throw new Error(`Could not create event: ${error?.message ?? "Unknown error"}`);
     }
+
+    return { id: data.id as string };
   } catch (error) {
     if (uploadedPosterPath) {
       try {
@@ -280,6 +287,7 @@ export async function updateEvent(
 
       throw new Error(
         "Event updated successfully, but the old poster could not be removed. Please contact support.",
+        { cause: error },
       );
     }
   }

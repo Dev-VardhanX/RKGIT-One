@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { Bell } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -25,6 +26,8 @@ import { toast } from "sonner";
 
 import { getPosterUrl, type EventRecord } from "@/lib/events";
 import { useDeleteEvent, useEvents } from "@/hooks/useEvents";
+import { useSendNotification } from "@/hooks/useNotify";
+import { notifyToastMessage } from "@/lib/notify";
 
 type EventFilter = "all" | "upcoming" | "past";
 
@@ -42,18 +45,22 @@ function isUpcoming(event: EventRecord): boolean {
 export default function EventsPage() {
   const eventsQuery = useEvents();
   const deleteMutation = useDeleteEvent();
+  const notifyMutation = useSendNotification();
 
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<EventFilter>("all");
   const [eventToDelete, setEventToDelete] =
     useState<EventRecord | null>(null);
+  const [eventToNotify, setEventToNotify] =
+    useState<EventRecord | null>(null);
 
-  const events = eventsQuery.data ?? [];
+  const events = eventsQuery.data;
 
   const filteredEvents = useMemo(() => {
     const query = search.trim().toLowerCase();
+    const list = events ?? [];
 
-    return events.filter((event) => {
+    return list.filter((event) => {
       const matchesSearch =
         !query ||
         event.title.toLowerCase().includes(query) ||
@@ -90,6 +97,8 @@ export default function EventsPage() {
       toast.error(message);
     }
   }
+
+  const totalCount = events?.length ?? 0;
 
   return (
     <div className="space-y-6">
@@ -168,18 +177,18 @@ export default function EventsPage() {
           ) : filteredEvents.length === 0 ? (
             <div className="rounded-lg border border-dashed px-4 py-12 text-center">
               <h3 className="font-medium">
-                {events.length === 0
+                {totalCount === 0
                   ? "No events yet"
                   : "No matching events"}
               </h3>
 
               <p className="mt-1 text-sm text-muted-foreground">
-                {events.length === 0
+                {totalCount === 0
                   ? "Create your first event to get started."
                   : "Try another search or filter."}
               </p>
 
-              {events.length === 0 && (
+              {totalCount === 0 && (
                 <Button
                   className="mt-4"
                   render={<Link to="/events/new" />}
@@ -197,6 +206,7 @@ export default function EventsPage() {
                     <th className="px-4 py-3 font-medium">Date and time</th>
                     <th className="px-4 py-3 font-medium">Venue</th>
                     <th className="px-4 py-3 font-medium">Status</th>
+                    <th className="px-4 py-3 font-medium whitespace-nowrap">Push</th>
                     <th className="px-4 py-3 text-right font-medium">
                       Actions
                     </th>
@@ -258,8 +268,33 @@ export default function EventsPage() {
                           </Badge>
                         </td>
 
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          {event.notified_at ? (
+                            <Badge
+                              variant="secondary"
+                              title={`Sent on ${formatEventDate(event.notified_at)}`}
+                            >
+                              Sent
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline">Not sent</Badge>
+                          )}
+                        </td>
+
                         <td className="px-4 py-3">
                           <div className="flex justify-end gap-2">
+                            {!event.notified_at && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                aria-label="Send notification"
+                                title="Send notification"
+                                onClick={() => setEventToNotify(event)}
+                              >
+                                <Bell className="size-4" />
+                              </Button>
+                            )}
+
                             <Button
                               size="sm"
                               variant="outline"
@@ -292,11 +327,60 @@ export default function EventsPage() {
 
           {!eventsQuery.isPending && !eventsQuery.isError && (
             <p className="text-xs text-muted-foreground">
-              Showing {filteredEvents.length} of {events.length} events.
+              Showing {filteredEvents.length} of {totalCount} events.
             </p>
           )}
         </CardContent>
       </Card>
+
+      <AlertDialog
+        open={Boolean(eventToNotify)}
+        onOpenChange={(open) => {
+          if (!open && !notifyMutation.isPending) {
+            setEventToNotify(null);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Send notification?</AlertDialogTitle>
+
+            <AlertDialogDescription>
+              Students will receive a push notification about “{eventToNotify?.title}”. This can only be done once.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={notifyMutation.isPending}>
+              Cancel
+            </AlertDialogCancel>
+
+            <AlertDialogAction
+              disabled={notifyMutation.isPending}
+              onClick={async (event) => {
+                event.preventDefault();
+                if (!eventToNotify) return;
+                const res = await notifyMutation.mutateAsync({
+                  kind: "event",
+                  id: eventToNotify.id,
+                });
+                const msg = notifyToastMessage(res);
+                if (msg.type === "success") {
+                  toast.success(msg.text);
+                } else if (msg.type === "warning") {
+                  toast.warning(msg.text);
+                } else {
+                  toast.error(msg.text);
+                }
+                setEventToNotify(null);
+                void eventsQuery.refetch();
+              }}
+            >
+              {notifyMutation.isPending ? "Sending..." : "Send"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog
         open={Boolean(eventToDelete)}

@@ -1,13 +1,15 @@
 import { useState } from "react"
 import { Link, useNavigate, useParams } from "react-router-dom"
-import { Controller, useForm } from "react-hook-form"
+import { Controller, useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { toast } from "sonner"
 import { useCreateNotice, useNotice, useUpdateNotice } from "@/hooks/useNotices"
 import { useDepartments } from "@/hooks/useDepartments"
+import { useSendNotification } from "@/hooks/useNotify"
+import { notifyToastMessage } from "@/lib/notify"
 import {
-  CATEGORIES, publicNoticeFileUrl, validateNoticeFile,
+  CATEGORIES, audienceLabel, publicNoticeFileUrl, validateNoticeFile,
   type AttachmentChange, type Notice,
 } from "@/lib/notices"
 import { errorMessage } from "@/lib/materials"
@@ -26,6 +28,7 @@ const schema = z.object({
   targetYears: z.array(z.number().int().min(1).max(4)),
   targetDepartments: z.array(z.string()),
   pinned: z.boolean(),
+  notify: z.boolean(),
   linkUrl: z
     .string()
     .trim()
@@ -46,6 +49,7 @@ function NoticeForm({ initial }: { initial?: Notice }) {
   const navigate = useNavigate()
   const create = useCreateNotice()
   const update = useUpdateNotice()
+  const sendNotificationMutation = useSendNotification()
   const {
     data: departments,
     isLoading: isDepartmentsLoading,
@@ -56,6 +60,7 @@ function NoticeForm({ initial }: { initial?: Notice }) {
   const [fileError, setFileError] = useState<string | null>(null)
   const [removeExisting, setRemoveExisting] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
+  const [isNotifying, setIsNotifying] = useState(false)
 
   const { register, handleSubmit, control, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -66,12 +71,17 @@ function NoticeForm({ initial }: { initial?: Notice }) {
       targetYears: initial?.target_years ?? [],
       targetDepartments: initial?.target_departments ?? [],
       pinned: initial?.pinned ?? false,
+      notify: !initial,
       linkUrl: initial?.link_url ?? "",
       expiresOn: toDateInput(initial?.expires_at ?? null),
     },
   })
 
-  const pending = create.isPending || update.isPending
+  const watchNotify = useWatch({ control, name: "notify" })
+  const watchYears = useWatch({ control, name: "targetYears" })
+  const watchDepartments = useWatch({ control, name: "targetDepartments" })
+
+  const pending = create.isPending || update.isPending || isNotifying
   const hasExisting = !!initial?.file_path
 
   async function onSubmit(v: FormValues) {
@@ -112,11 +122,34 @@ function NoticeForm({ initial }: { initial?: Notice }) {
             ? { kind: "remove" }
             : { kind: "keep" }
         await update.mutateAsync({ existing: initial, input, change })
+        toast.success("Notice updated")
+        navigate("/notices")
       } else {
-        await create.mutateAsync({ input, file: file ?? undefined })
+        const res = await create.mutateAsync({ input, file: file ?? undefined })
+        toast.success("Notice added")
+        if (v.notify && res?.id) {
+          setIsNotifying(true)
+          try {
+            const notifyResult = await sendNotificationMutation.mutateAsync({
+              kind: "notice",
+              id: res.id,
+            })
+            const toastMsg = notifyToastMessage(notifyResult)
+            if (toastMsg.type === "success") {
+              toast.success(toastMsg.text)
+            } else if (toastMsg.type === "warning") {
+              toast.warning(toastMsg.text)
+            } else {
+              toast.error(toastMsg.text)
+            }
+          } catch {
+            // Notifications should not block navigation on unexpected failure
+          } finally {
+            setIsNotifying(false)
+          }
+        }
+        navigate("/notices")
       }
-      toast.success(initial ? "Notice updated" : "Notice added")
-      navigate("/notices")
     } catch (e) {
       toast.error(errorMessage(e))
     }
@@ -349,6 +382,33 @@ function NoticeForm({ initial }: { initial?: Notice }) {
           </div>
         </div>
 
+        {!initial && (
+          <div className="flex items-start justify-between gap-4 rounded-md border p-3">
+            <div className="space-y-1">
+              <Label htmlFor="notify">Notify students</Label>
+              <p className="text-xs text-muted-foreground">
+                Sends a push notification to students' phones. This can be done only once per item.
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {watchNotify
+                  ? `Will notify: ${audienceLabel(watchYears ?? [], watchDepartments ?? [], departments ?? [])}`
+                  : "No notification will be sent. You can send it later from the list."}
+              </p>
+            </div>
+            <Controller
+              control={control}
+              name="notify"
+              render={({ field }) => (
+                <Switch
+                  id="notify"
+                  checked={field.value}
+                  onCheckedChange={field.onChange}
+                />
+              )}
+            />
+          </div>
+        )}
+
         {formError && <p className="text-sm text-destructive">{formError}</p>}
 
         <div className="flex justify-end gap-3">
@@ -357,11 +417,17 @@ function NoticeForm({ initial }: { initial?: Notice }) {
             variant="outline"
             disabled={pending}
             render={<Link to="/notices" />}
-            >
+          >
             Cancel
-            </Button>
+          </Button>
           <Button type="submit" disabled={pending}>
-            {pending ? (file ? "Uploading..." : "Saving...") : "Save"}
+            {isNotifying
+              ? "Sending notification..."
+              : pending
+                ? file
+                  ? "Uploading..."
+                  : "Saving..."
+                : "Save"}
           </Button>
         </div>
       </form>

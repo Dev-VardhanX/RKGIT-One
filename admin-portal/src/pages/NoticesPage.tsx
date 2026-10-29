@@ -1,9 +1,11 @@
 import { useMemo, useState } from "react"
 import { Link } from "react-router-dom"
-import { ExternalLink, Pencil, Pin, Plus, Trash2 } from "lucide-react"
+import { Bell, ExternalLink, Pencil, Pin, Plus, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { useDeleteNotice, useNotices } from "@/hooks/useNotices"
 import { useDepartments } from "@/hooks/useDepartments"
+import { useSendNotification } from "@/hooks/useNotify"
+import { notifyToastMessage } from "@/lib/notify"
 import { CATEGORIES, categoryLabel, audienceLabel, isExpired, publicNoticeFileUrl, type Notice } from "@/lib/notices"
 import { errorMessage, formatBytes, formatDate } from "@/lib/materials"
 import { Button } from "@/components/ui/button"
@@ -17,14 +19,25 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 
+function formatNoticeDateTime(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso
+  return new Intl.DateTimeFormat("en-IN", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(d)
+}
+
 export default function NoticesPage() {
   const { data: notices, isLoading, error, refetch } = useNotices()
   const { data: departments } = useDepartments()
   const del = useDeleteNotice()
+  const notifyMutation = useSendNotification()
   const [q, setQ] = useState("")
   const [category, setCategory] = useState("all")
   const [status, setStatus] = useState("all")
   const [toDelete, setToDelete] = useState<Notice | null>(null)
+  const [toNotify, setToNotify] = useState<Notice | null>(null)
 
   const filtered = useMemo(() => {
     const t = q.trim().toLowerCase()
@@ -92,6 +105,7 @@ export default function NoticesPage() {
                 <TableHead>Attachment</TableHead>
                 <TableHead>Published</TableHead>
                 <TableHead>Expires</TableHead>
+                <TableHead className="whitespace-nowrap">Push</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -132,8 +146,31 @@ export default function NoticesPage() {
                       <span className="text-muted-foreground">Never</span>
                     )}
                   </TableCell>
+                  <TableCell className="whitespace-nowrap">
+                    {n.notified_at ? (
+                      <Badge
+                        variant="secondary"
+                        title={`Sent on ${formatNoticeDateTime(n.notified_at)}`}
+                      >
+                        Sent
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline">Not sent</Badge>
+                    )}
+                  </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
+                      {!n.notified_at && !isExpired(n) && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label="Send notification"
+                          title="Send notification"
+                          onClick={() => setToNotify(n)}
+                        >
+                          <Bell className="size-4" />
+                        </Button>
+                      )}
                       {n.file_path && (
                         <Button
                           variant="ghost"
@@ -169,6 +206,43 @@ export default function NoticesPage() {
           </Table>
         )}
       </div>
+
+      <AlertDialog open={!!toNotify} onOpenChange={(open) => !open && !notifyMutation.isPending && setToNotify(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Send notification?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Students will receive a push notification about “{toNotify?.title}”. This can only be done once.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={notifyMutation.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={notifyMutation.isPending}
+              onClick={async (e) => {
+                e.preventDefault()
+                if (!toNotify) return
+                const res = await notifyMutation.mutateAsync({
+                  kind: "notice",
+                  id: toNotify.id,
+                })
+                const msg = notifyToastMessage(res)
+                if (msg.type === "success") {
+                  toast.success(msg.text)
+                } else if (msg.type === "warning") {
+                  toast.warning(msg.text)
+                } else {
+                  toast.error(msg.text)
+                }
+                setToNotify(null)
+                void refetch()
+              }}
+            >
+              {notifyMutation.isPending ? "Sending..." : "Send"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={!!toDelete} onOpenChange={(o) => !o && !del.isPending && setToDelete(null)}>
         <AlertDialogContent>

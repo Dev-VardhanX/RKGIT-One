@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { z } from "zod";
 
@@ -12,6 +12,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 
@@ -21,6 +22,7 @@ import {
   getPosterUrl,
   validateEventInput,
   type EventInput,
+  type EventRecord,
 } from "@/lib/events";
 
 import {
@@ -28,6 +30,8 @@ import {
   useEvent,
   useUpdateEvent,
 } from "@/hooks/useEvents";
+import { useSendNotification } from "@/hooks/useNotify";
+import { notifyToastMessage } from "@/lib/notify";
 
 const eventSchema = z.object({
   title: z.string().trim().min(1, "Event title is required."),
@@ -35,6 +39,7 @@ const eventSchema = z.object({
   event_date: z.string().min(1, "Date and time are required."),
   venue: z.string(),
   registration_url: z.string(),
+  notify: z.boolean(),
 });
 
 function toLocalDateTime(value: string): string {
@@ -47,60 +52,42 @@ function toLocalDateTime(value: string): string {
     .slice(0, 16);
 }
 
-export default function EventFormPage() {
-  const { id } = useParams();
+function EventForm({ initial }: { initial?: EventRecord }) {
   const navigate = useNavigate();
-  const editing = Boolean(id);
+  const editing = Boolean(initial);
 
-  const eventQuery = useEvent(id ?? "");
   const createMutation = useCreateEvent();
   const updateMutation = useUpdateEvent();
+  const sendNotificationMutation = useSendNotification();
 
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [eventDate, setEventDate] = useState("");
-  const [venue, setVenue] = useState("");
-  const [registrationUrl, setRegistrationUrl] = useState("");
+  const [title, setTitle] = useState(initial?.title ?? "");
+  const [description, setDescription] = useState(initial?.description ?? "");
+  const [eventDate, setEventDate] = useState(
+    initial ? toLocalDateTime(initial.event_date) : ""
+  );
+  const [venue, setVenue] = useState(initial?.venue ?? "");
+  const [registrationUrl, setRegistrationUrl] = useState(
+    initial?.registration_url ?? ""
+  );
   const [poster, setPoster] = useState<File | null>(null);
-  const [posterPreview, setPosterPreview] = useState<string | null>(null);
-  const [existingPosterPath, setExistingPosterPath] =
-    useState<string | null>(null);
+  const [posterPreview, setPosterPreview] = useState<string | null>(
+    getPosterUrl(initial?.poster_path ?? null)
+  );
+  const [existingPosterPath] = useState<string | null>(
+    initial?.poster_path ?? null
+  );
+  const [notify, setNotify] = useState(!initial);
   const [formError, setFormError] = useState<string | null>(null);
+  const [isNotifying, setIsNotifying] = useState(false);
 
-  const pending = createMutation.isPending || updateMutation.isPending;
-
-  useEffect(() => {
-    if (!editing || !eventQuery.data) {
-      return;
-    }
-
-    const event = eventQuery.data;
-
-    setTitle(event.title);
-    setDescription(event.description ?? "");
-    setEventDate(toLocalDateTime(event.event_date));
-    setVenue(event.venue ?? "");
-    setRegistrationUrl(event.registration_url ?? "");
-    setExistingPosterPath(event.poster_path);
-    setPosterPreview(getPosterUrl(event.poster_path));
-  }, [editing, eventQuery.data]);
-
-  useEffect(() => {
-    if (!poster) {
-      return;
-    }
-
-    const objectUrl = URL.createObjectURL(poster);
-    setPosterPreview(objectUrl);
-
-    return () => URL.revokeObjectURL(objectUrl);
-  }, [poster]);
+  const pending = createMutation.isPending || updateMutation.isPending || isNotifying;
 
   function handlePosterChange(file: File | null) {
     setFormError(null);
 
     if (!file) {
       setPoster(null);
+      setPosterPreview(getPosterUrl(existingPosterPath));
       return;
     }
 
@@ -119,6 +106,7 @@ export default function EventFormPage() {
     }
 
     setPoster(file);
+    setPosterPreview(URL.createObjectURL(file));
   }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -131,6 +119,7 @@ export default function EventFormPage() {
       event_date: eventDate,
       venue,
       registration_url: registrationUrl,
+      notify,
     });
 
     if (!parsed.success) {
@@ -156,18 +145,40 @@ export default function EventFormPage() {
     }
 
     try {
-      if (editing && id) {
+      if (editing && initial) {
         await updateMutation.mutateAsync({
-          id,
+          id: initial.id,
           input,
           previousPosterPath: existingPosterPath,
         });
 
         toast.success("Event updated successfully.");
       } else {
-        await createMutation.mutateAsync(input);
+        const res = await createMutation.mutateAsync(input);
 
         toast.success("Event created successfully.");
+
+        if (notify && res?.id) {
+          setIsNotifying(true);
+          try {
+            const notifyResult = await sendNotificationMutation.mutateAsync({
+              kind: "event",
+              id: res.id,
+            });
+            const toastMsg = notifyToastMessage(notifyResult);
+            if (toastMsg.type === "success") {
+              toast.success(toastMsg.text);
+            } else if (toastMsg.type === "warning") {
+              toast.warning(toastMsg.text);
+            } else {
+              toast.error(toastMsg.text);
+            }
+          } catch {
+            // Notifications should not block navigation on unexpected failure
+          } finally {
+            setIsNotifying(false);
+          }
+        }
       }
 
       navigate("/events");
@@ -178,38 +189,6 @@ export default function EventFormPage() {
       setFormError(message);
       toast.error(message);
     }
-  }
-
-  if (editing && eventQuery.isPending) {
-    return (
-      <div className="mx-auto max-w-3xl space-y-4">
-        <Skeleton className="h-10 w-64" />
-        <Skeleton className="h-96 w-full" />
-      </div>
-    );
-  }
-
-  if (editing && eventQuery.isError) {
-    return (
-      <Card>
-        <CardContent className="space-y-4 pt-6">
-          <p className="text-sm text-destructive">
-            {eventQuery.error.message}
-          </p>
-
-          <Button
-            variant="outline"
-            onClick={() => eventQuery.refetch()}
-          >
-            Retry
-          </Button>
-
-          <Button render={<Link to="/events" />}>
-            Back to events
-          </Button>
-        </CardContent>
-      </Card>
-    );
   }
 
   return (
@@ -351,6 +330,27 @@ export default function EventFormPage() {
               )}
             </div>
 
+            {!editing && (
+              <div className="flex items-start justify-between gap-4 rounded-md border p-3">
+                <div className="space-y-1">
+                  <Label htmlFor="notify">Notify students</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Sends a push notification to students' phones. This can be done only once per item.
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {notify
+                      ? "Will notify: Everyone"
+                      : "No notification will be sent. You can send it later from the list."}
+                  </p>
+                </div>
+                <Switch
+                  id="notify"
+                  checked={notify}
+                  onCheckedChange={(checked) => setNotify(checked)}
+                />
+              </div>
+            )}
+
             {formError && (
               <div
                 role="alert"
@@ -371,11 +371,13 @@ export default function EventFormPage() {
               </Button>
 
               <Button type="submit" disabled={pending}>
-                {pending
-                  ? "Saving..."
-                  : editing
-                    ? "Save changes"
-                    : "Create event"}
+                {isNotifying
+                  ? "Sending notification..."
+                  : pending
+                    ? "Saving..."
+                    : editing
+                      ? "Save changes"
+                      : "Create event"}
               </Button>
             </div>
           </form>
@@ -383,4 +385,47 @@ export default function EventFormPage() {
       </Card>
     </div>
   );
+}
+
+export default function EventFormPage() {
+  const { id } = useParams();
+  const eventQuery = useEvent(id ?? "");
+
+  if (!id) {
+    return <EventForm />;
+  }
+
+  if (eventQuery.isPending) {
+    return (
+      <div className="mx-auto max-w-3xl space-y-4">
+        <Skeleton className="h-10 w-64" />
+        <Skeleton className="h-96 w-full" />
+      </div>
+    );
+  }
+
+  if (eventQuery.isError || !eventQuery.data) {
+    return (
+      <Card>
+        <CardContent className="space-y-4 pt-6">
+          <p className="text-sm text-destructive">
+            {eventQuery.error?.message ?? "Event not found."}
+          </p>
+
+          <Button
+            variant="outline"
+            onClick={() => eventQuery.refetch()}
+          >
+            Retry
+          </Button>
+
+          <Button render={<Link to="/events" />}>
+            Back to events
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return <EventForm key={eventQuery.data.id} initial={eventQuery.data} />;
 }
