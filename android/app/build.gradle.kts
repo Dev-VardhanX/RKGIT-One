@@ -6,6 +6,7 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt.android)
+    alias(libs.plugins.google.services)
 }
 
 val localProps = Properties().apply {
@@ -33,7 +34,11 @@ android {
     }
 
     buildTypes {
+        debug {
+            buildConfigField("String", "FCM_TOPIC_PREFIX", "\"dev-\"")
+        }
         release {
+            buildConfigField("String", "FCM_TOPIC_PREFIX", "\"\"")
             optimization {
                 enable = false
             }
@@ -101,6 +106,10 @@ dependencies {
     // Hilt Work
     implementation(libs.androidx.hilt.work)
     ksp(libs.androidx.hilt.compiler)
+
+    // Firebase
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.messaging)
 
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))

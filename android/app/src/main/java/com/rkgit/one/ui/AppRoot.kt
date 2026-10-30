@@ -14,10 +14,12 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavDestination.Companion.hierarchy
@@ -26,6 +28,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.rkgit.one.push.PushType
 import com.rkgit.one.ui.components.LocalOpenDownloads
 import com.rkgit.one.ui.navigation.DownloadsRoute
 import com.rkgit.one.ui.navigation.EventDetailRoute
@@ -78,6 +81,26 @@ fun AppRoot(
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val destination = backStackEntry?.destination
+
+    val deepLink by viewModel.deepLink.collectAsStateWithLifecycle()
+
+    LaunchedEffect(deepLink) {
+        val link = deepLink ?: return@LaunchedEffect
+        val isSetupShowing = destination?.hasRoute(SetupRoute::class) == true || !viewModel.isSetupDone()
+        if (isSetupShowing) {
+            viewModel.consumeDeepLink()
+        } else {
+            when (link.type) {
+                PushType.NOTICE -> navController.navigate(NoticeDetailRoute(link.id)) {
+                    launchSingleTop = true
+                }
+                PushType.EVENT -> navController.navigate(EventDetailRoute(link.id)) {
+                    launchSingleTop = true
+                }
+            }
+            viewModel.consumeDeepLink()
+        }
+    }
 
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
