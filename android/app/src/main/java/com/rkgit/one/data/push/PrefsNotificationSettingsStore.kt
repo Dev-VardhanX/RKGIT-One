@@ -49,4 +49,18 @@ class PrefsNotificationSettingsStore @Inject constructor(
             .putStringSet("subscribed_topics", HashSet(topics))
             .apply()
     }
+
+    override fun readPromptShown(): Boolean =
+        prefs.getBoolean("prompt_shown", false)
+
+    override fun writePromptShown(shown: Boolean) {
+        prefs.edit().putBoolean("prompt_shown", shown).apply()
+    }
+
+    override fun readPermissionRequested(): Boolean =
+        prefs.getBoolean("permission_requested", false)
+
+    override fun writePermissionRequested(requested: Boolean) {
+        prefs.edit().putBoolean("permission_requested", requested).apply()
+    }
 }

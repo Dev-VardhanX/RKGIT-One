@@ -4,8 +4,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.rkgit.one.data.profile.ProfileRepository
 import com.rkgit.one.data.profile.StudentProfile
+import com.rkgit.one.data.push.NotificationSettingsRepository
 import com.rkgit.one.data.repository.DepartmentsRepository
 import com.rkgit.one.data.repository.DepartmentsResult
+import com.rkgit.one.push.NotificationSettings
 import com.rkgit.one.ui.screens.profile.DepartmentsUiState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -17,10 +19,12 @@ import javax.inject.Inject
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val profileRepository: ProfileRepository,
-    private val departmentsRepository: DepartmentsRepository
+    private val departmentsRepository: DepartmentsRepository,
+    private val notificationSettingsRepository: NotificationSettingsRepository
 ) : ViewModel() {
 
     val profile: StateFlow<StudentProfile> = profileRepository.profile
+    val notificationSettings: StateFlow<NotificationSettings> = notificationSettingsRepository.settings
 
     private val _departments = MutableStateFlow<DepartmentsUiState>(DepartmentsUiState.Loading)
     val departments: StateFlow<DepartmentsUiState> = _departments.asStateFlow()
@@ -51,5 +55,17 @@ class SettingsViewModel @Inject constructor(
 
     fun setDepartment(code: String?) {
         profileRepository.setDepartment(code)
+    }
+
+    fun setNoticesEnabled(enabled: Boolean) {
+        notificationSettingsRepository.setNoticesEnabled(enabled)
+    }
+
+    fun setEventsEnabled(enabled: Boolean) {
+        notificationSettingsRepository.setEventsEnabled(enabled)
+    }
+
+    fun setBothNotifications(notices: Boolean, events: Boolean) {
+        notificationSettingsRepository.setBoth(notices, events)
     }
 }

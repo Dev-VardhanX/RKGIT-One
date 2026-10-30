@@ -60,5 +60,9 @@ interface NotificationSettingsStore {
     fun write(s: NotificationSettings)
     fun readSubscribed(): Set<String>
     fun writeSubscribed(topics: Set<String>)
+    fun readPromptShown(): Boolean
+    fun writePromptShown(shown: Boolean)
+    fun readPermissionRequested(): Boolean
+    fun writePermissionRequested(requested: Boolean)
 }
 

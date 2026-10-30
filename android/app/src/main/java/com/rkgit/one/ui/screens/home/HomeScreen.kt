@@ -14,6 +14,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -21,6 +22,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -29,6 +31,10 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.rkgit.one.domain.model.RecentMaterial
+import com.rkgit.one.push.isAllowed
+import com.rkgit.one.push.rememberNotificationPermission
+import com.rkgit.one.push.settingsAfterPermissionResult
+import com.rkgit.one.push.shouldShowFirstPrompt
 import com.rkgit.one.ui.components.EmptyView
 import com.rkgit.one.ui.components.LoadableContent
 import com.rkgit.one.ui.components.ScreenScaffold
@@ -53,6 +59,60 @@ fun HomeScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val refreshing by viewModel.refreshing.collectAsStateWithLifecycle()
     val profile by viewModel.profile.collectAsStateWithLifecycle()
+    val promptShown by viewModel.promptShown.collectAsStateWithLifecycle()
+
+    val controller = rememberNotificationPermission { granted ->
+        val current = viewModel.notificationSettings.value
+        val next = settingsAfterPermissionResult(
+            granted = granted,
+            current = current,
+            requestedNotices = true,
+            requestedEvents = true
+        )
+        viewModel.setBothNotifications(next.noticesEnabled, next.eventsEnabled)
+    }
+
+    val permState = controller.state
+    val setupDone = profile.setupDone
+
+    LaunchedEffect(setupDone, promptShown, permState) {
+        if (setupDone && !promptShown && isAllowed(permState)) {
+            viewModel.markPromptShown()
+        }
+    }
+
+    if (shouldShowFirstPrompt(setupDone = setupDone, promptShown = promptShown, state = permState)) {
+        AlertDialog(
+            onDismissRequest = {
+                viewModel.markPromptShown()
+                viewModel.setBothNotifications(notices = false, events = false)
+            },
+            title = { Text("Get notified?") },
+            text = {
+                Text("Turn on notifications to hear about new notices and events for your year and branch.")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.markPromptShown()
+                        controller.request()
+                    }
+                ) {
+                    Text("Turn on")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.markPromptShown()
+                        viewModel.setBothNotifications(notices = false, events = false)
+                    }
+                ) {
+                    Text("Not now")
+                }
+            }
+        )
+    }
 
     ScreenScaffold(
         title = "RKGIT ONE",
